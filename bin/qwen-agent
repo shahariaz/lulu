@@ -1,0 +1,343 @@
+#!/usr/bin/env node
+
+/**
+ * Qwen Chat Agent CLI
+ *
+ * Uses your chat.qwen.ai web credentials to run Qwen as an AI agent from the terminal.
+ *
+ * Usage:
+ *   qwen-agent "Explain how quantum computing works"
+ *   qwen-agent --model qwen3.8-max "Review this architecture plan"
+ *   cat file.js | qwen-agent "Find potential bugs"
+ *   qwen-agent chat                     # Interactive multi-turn chat session
+ *   qwen-agent login                    # Instructions & prompt to save your token
+ *   qwen-agent set-token <token>        # Save token directly
+ *   qwen-agent status                   # View active accounts and models
+ *   qwen-agent models                   # List available Qwen Chat models
+ */
+
+import readline from 'node:readline'
+import fs from 'node:fs'
+import { qwenAccountManager, QWEN_MODELS, DEFAULT_QWEN_MODEL, maskToken } from '../lib/qwen-accounts.mjs'
+import { qwenClient } from '../lib/qwen-client.mjs'
+
+const args = process.argv.slice(2)
+
+function printHelp() {
+  console.log(`
+Qwen Chat Agent CLI (chat.qwen.ai)
+
+Commands:
+  qwen-agent "<prompt>"              Run a single prompt and stream response
+  qwen-agent chat                    Start an interactive multi-turn chat
+  qwen-agent login                   Interactive login helper
+  qwen-agent set-token <token>       Save your chat.qwen.ai web token
+  qwen-agent status                  Check account & token status
+  qwen-agent models                  List available Qwen models
+
+Options:
+  -m, --model <model>                Model to use (default: ${DEFAULT_QWEN_MODEL})
+  -s, --system <prompt>              Optional system instructions
+  --json                             Output raw JSON completion instead of streaming
+  -h, --help                         Show this help message
+
+Examples:
+  qwen-agent "Write a python script to parse CSV files"
+  qwen-agent --model qwen3.8-max "Analyze the following algorithm..."
+  cat src/index.js | qwen-agent "Find bugs in this code"
+`)
+}
+
+async function handleLogin() {
+  console.log(`
+=====================================================
+  Qwen Chat Web Token Setup (chat.qwen.ai)
+=====================================================
+
+To use your chat.qwen.ai session as an agent:
+1. Open your browser and go to https://chat.qwen.ai
+2. Log in to your Qwen account.
+3. Open Developer Tools (Press F12 or Right-Click -> Inspect).
+4. Click the 'Console' tab.
+5. Paste and run:
+     localStorage.getItem("token")
+6. Copy the output string (without surrounding quotes).
+`)
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  })
+
+  rl.question('Paste your Qwen token here: ', async (token) => {
+    rl.close()
+    const cleanToken = token.trim().replace(/^['"]|['"]$/g, '')
+    if (!cleanToken) {
+      console.error('No token provided.')
+      process.exit(1)
+    }
+
+    console.log('Validating token with Qwen...')
+    const validation = await qwenClient.validateToken(cleanToken)
+    if (!validation.valid) {
+      console.error(`Token validation failed: ${validation.error || 'HTTP ' + validation.status}`)
+      process.exit(1)
+    }
+
+    const acc = qwenAccountManager.saveAccount({ token: cleanToken })
+    console.log(`\nToken saved successfully!`)
+    console.log(`Account: ${acc.email} (${maskToken(acc.accessToken)})`)
+    console.log(`Available models: ${validation.models.slice(0, 5).join(', ')}...`)
+    console.log(`\nYou can now run: qwen-agent "Hello Qwen!"`)
+  })
+}
+
+async function handleSetToken(token) {
+  const cleanToken = token.trim().replace(/^['"]|['"]$/g, '')
+  if (!cleanToken) {
+    console.error('Usage: qwen-agent set-token <token>')
+    process.exit(1)
+  }
+
+  console.log('Validating token...')
+  const validation = await qwenClient.validateToken(cleanToken)
+  if (!validation.valid) {
+    console.warn(`Warning: Token validation returned: ${validation.error || 'HTTP ' + validation.status}`)
+  }
+
+  const acc = qwenAccountManager.saveAccount({ token: cleanToken })
+  console.log(`Token saved for ${acc.email} (${maskToken(acc.accessToken)})`)
+}
+
+async function handleStatus() {
+  qwenAccountManager.init()
+  const accounts = qwenAccountManager.accounts
+
+  console.log(`\nQwen Chat Accounts (${accounts.length} configured):`)
+  if (!accounts.length) {
+    console.log('  No accounts configured. Run `qwen-agent login` to add your token.')
+    return
+  }
+
+  for (const acc of accounts) {
+    const isLimited = acc.rateLimitedUntil && acc.rateLimitedUntil > Date.now()
+    const statusStr = isLimited
+      ? `RATE-LIMITED (resets in ${Math.round((acc.rateLimitedUntil - Date.now()) / 1000)}s)`
+      : 'ACTIVE'
+    console.log(`  - ${acc.email} | ${acc.name} | Token: ${maskToken(acc.accessToken)} | ${statusStr}`)
+  }
+  console.log()
+}
+
+async function handleListModels() {
+  try {
+    const models = await qwenClient.listModels()
+    console.log('\nAvailable Qwen Chat Models:')
+    for (const m of models) {
+      console.log(`  - ${m.id.padEnd(22)} : ${m.name || m.id}`)
+    }
+    console.log()
+  } catch (err) {
+    console.error('Failed to fetch models:', err.message)
+    console.log('\nBuilt-in known models:')
+    for (const m of QWEN_MODELS) {
+      console.log(`  - ${m}`)
+    }
+  }
+}
+
+async function handleInteractiveChat(model, systemPrompt) {
+  qwenAccountManager.init()
+  if (!qwenAccountManager.accounts.length) {
+    console.log('No Qwen account configured. Please run `qwen-agent login` first.')
+    process.exit(1)
+  }
+
+  console.log(`\nStarting Qwen Interactive Chat [Model: ${model}]`)
+  console.log(`Type your message and press Enter. Type "exit" or "quit" to leave.\n`)
+
+  const history = []
+  if (systemPrompt) {
+    history.push({ role: 'system', content: systemPrompt })
+  }
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    prompt: '\nUser > ',
+  })
+
+  rl.prompt()
+
+  rl.on('line', async (line) => {
+    const input = line.trim()
+    if (!input) {
+      rl.prompt()
+      return
+    }
+    if (input === 'exit' || input === 'quit') {
+      rl.close()
+      return
+    }
+
+    history.push({ role: 'user', content: input })
+    process.stdout.write('\nQwen > ')
+
+    try {
+      const streamBody = await qwenClient.createChatCompletion({
+        model,
+        messages: history,
+        stream: true,
+      })
+
+      let assistantText = ''
+      for await (const chunk of qwenClient.iterateSseStream(streamBody)) {
+        const delta = chunk?.choices?.[0]?.delta?.content || ''
+        if (delta) {
+          process.stdout.write(delta)
+          assistantText += delta
+        }
+      }
+      process.stdout.write('\n')
+      history.push({ role: 'assistant', content: assistantText })
+    } catch (err) {
+      console.error(`\nError: ${err.message}`)
+    }
+
+    rl.prompt()
+  })
+
+  rl.on('close', () => {
+    console.log('\nChat ended.')
+    process.exit(0)
+  })
+}
+
+async function readStdin() {
+  if (process.stdin.isTTY) return ''
+  return new Promise((resolve) => {
+    let data = ''
+    process.stdin.setEncoding('utf8')
+    process.stdin.on('data', (chunk) => {
+      data += chunk
+    })
+    process.stdin.on('end', () => {
+      resolve(data)
+    })
+  })
+}
+
+async function main() {
+  if (args.length === 0 || args.includes('-h') || args.includes('--help')) {
+    printHelp()
+    return
+  }
+
+  const cmd = args[0]
+  if (cmd === 'login') {
+    await handleLogin()
+    return
+  }
+  if (cmd === 'set-token') {
+    await handleSetToken(args[1] || '')
+    return
+  }
+  if (cmd === 'status' || cmd === 'accounts') {
+    await handleStatus()
+    return
+  }
+  if (cmd === 'models') {
+    await handleListModels()
+    return
+  }
+
+  // Parse options
+  let model = DEFAULT_QWEN_MODEL
+  let systemPrompt = ''
+  let rawJson = false
+  const promptParts = []
+
+  let i = 0
+  if (cmd === 'chat') {
+    i = 1
+  }
+
+  while (i < args.length) {
+    const arg = args[i]
+    if (arg === '-m' || arg === '--model') {
+      model = args[++i] || DEFAULT_QWEN_MODEL
+    } else if (arg === '-s' || arg === '--system') {
+      systemPrompt = args[++i] || ''
+    } else if (arg === '--json') {
+      rawJson = true
+    } else {
+      promptParts.push(arg)
+    }
+    i++
+  }
+
+  if (cmd === 'chat') {
+    await handleInteractiveChat(model, systemPrompt)
+    return
+  }
+
+  // Check for piped stdin
+  const stdinContent = await readStdin()
+  let userPrompt = promptParts.join(' ').trim()
+  if (stdinContent) {
+    userPrompt = userPrompt
+      ? `${userPrompt}\n\nContext:\n${stdinContent}`
+      : stdinContent
+  }
+
+  if (!userPrompt) {
+    console.error('Error: No prompt provided. See --help for usage.')
+    process.exit(1)
+  }
+
+  qwenAccountManager.init()
+  if (!qwenAccountManager.accounts.length) {
+    console.error('No Qwen account configured. Please run `qwen-agent login` to set up your token.')
+    process.exit(1)
+  }
+
+  const messages = []
+  if (systemPrompt) {
+    messages.push({ role: 'system', content: systemPrompt })
+  }
+  messages.push({ role: 'user', content: userPrompt })
+
+  if (rawJson) {
+    const result = await qwenClient.createChatCompletion({
+      model,
+      messages,
+      stream: false,
+    })
+    console.log(JSON.stringify(result, null, 2))
+    return
+  }
+
+  try {
+    const streamBody = await qwenClient.createChatCompletion({
+      model,
+      messages,
+      stream: true,
+    })
+
+    for await (const chunk of qwenClient.iterateSseStream(streamBody)) {
+      const delta = chunk?.choices?.[0]?.delta?.content || ''
+      if (delta) {
+        process.stdout.write(delta)
+      }
+    }
+    process.stdout.write('\n')
+  } catch (err) {
+    console.error(`\nError: ${err.message}`)
+    process.exit(1)
+  }
+}
+
+main().catch((err) => {
+  console.error('Fatal error:', err.message)
+  process.exit(1)
+})

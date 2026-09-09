@@ -1,0 +1,1014 @@
+#!/usr/bin/env bash
+# Launch Claude Code against the local Zen, Antigravity, or Codex proxy.
+set -euo pipefail
+
+# Preferred model tiers.
+OPUS_MODEL="gpt-5.6-sol"
+SONNET_MODEL="gpt-5.4"
+HAIKU_MODEL="gemini-3.8-flash-tiered"
+MODEL="$SONNET_MODEL"
+MODEL_EXPLICIT=0
+PROVIDER="zen"
+PROVIDER_EXPLICIT=0
+ACCOUNT_COMMAND=""
+CODEX_ACCOUNT_COMMAND=""
+QWEN_ACCOUNT_COMMAND=""
+QWEN_WEB_ACCOUNT_COMMAND=""
+ZEN_ACCOUNT_COMMAND=""
+ZEN_ACCOUNT_ARG=""
+FORCE_HYBRID=0
+ANTIGRAVITY_VARIANT_OVERRIDE=""
+
+# Convenient positional launchers. They select the gateway implementation for
+# this invocation without changing the persistent .env configuration.
+case "${1:-}" in
+  ant-custom)
+    ANTIGRAVITY_VARIANT_OVERRIDE="custom"
+    PROVIDER="antigravity"
+    PROVIDER_EXPLICIT=1
+    shift
+    ;;
+  ant-open|ant-opensource)
+    ANTIGRAVITY_VARIANT_OVERRIDE="opensource"
+    PROVIDER="antigravity"
+    PROVIDER_EXPLICIT=1
+    shift
+    ;;
+esac
+
+PORT="${ZEN_PROXY_PORT:-8787}"
+HEALTH="http://127.0.0.1:${PORT}/health"
+DIR="$HOME/.zen-claude"
+START="$DIR/start.sh"
+LOG="$DIR/proxy.log"
+GO_URL="https://opencode.ai/zen/go/v1"
+FREE_URL="https://opencode.ai/zen/v1"
+
+set -a; [ -f "$DIR/.env" ] && source "$DIR/.env"; set +a
+
+AGW_DIR="${ANTIGRAVITY_DIR:-$DIR}"
+AGW_PORT="${ANTIGRAVITY_PORT:-8788}"
+AGW_HEALTH="http://127.0.0.1:${AGW_PORT}/health"
+AGW_LOG="$DIR/antigravity-gateway.log"
+AGW_START="$DIR/antigravity-gateway.mjs"
+AGW_IMPL="${ANTIGRAVITY_GATEWAY_IMPL:-custom}"
+AGW_OPEN_SOURCE_DIR="${ANTIGRAVITY_OPEN_SOURCE_DIR:-$DIR/antigravity-gateway}"
+
+CODEX_PORT="${CODEX_PORT:-8789}"
+CODEX_HEALTH="http://127.0.0.1:${CODEX_PORT}/health"
+CODEX_LOG="$DIR/codex-gateway.log"
+CODEX_BASE="http://127.0.0.1:${CODEX_PORT}/v1"
+CODEX_MODELS="gpt-5.6-sol,gpt-5.4,gpt-5.5,gpt-5.4-mini,o3"
+QWEN_DEFAULT_MODEL="qwen3.8-max"
+
+CONFIG_FILE="${CLAUDE_ZEN_CONFIG:-$DIR/config.yaml}"
+ROUTING_MODE="zen"
+AGW_MODELS="gemini-3.8-flash-tiered,gemini-3.1-pro-low,gemini-pro-agent,claude-opus-4-6-thinking,claude-sonnet-4-6"
+
+usage() {
+  cat <<'EOF'
+Usage: claude-zen [options] [-- claude args...]
+
+Providers and models:
+  claude-zen                         Start services & use Zen / Hybrid routing
+  claude-zen --codex                 Use OpenAI Codex / ChatGPT Plus directly
+  claude-zen --codex -m <model>      Use a specific Codex model (e.g. gpt-5.6-sol)
+  claude-zen --qwen                  Use Qwen Chat via the qwen.aikit.club relay
+  claude-zen --qwen -m <model>       Use a specific Qwen model (e.g. qwen3.8-max)
+  claude-zen --qwen-web              Use Qwen direct via chat.qwen.ai cookie (unofficial)
+  claude-zen --qwen-web -m <model>   Use a specific Qwen Web model (e.g. qwen3.8-max)
+  claude-zen --antigravity           Use Antigravity directly
+  claude-zen --antigravity -m <m>    Use a specific Antigravity model
+  claude-zen ant-custom               Use the custom Antigravity gateway
+  claude-zen ant-open                 Use the open-source Antigravity gateway
+  claude-zen -m <model>              Override model for this run
+
+Ports & Services:
+  Zen proxy:                         8787 (OpenCode Zen/Go)
+  Antigravity Gateway:               8788 (Google Gemini / Cloud Code)
+  Codex Gateway:                     8789 (ChatGPT Plus / OpenAI OAuth)
+  Web Dashboard:                     http://127.0.0.1:8789/dashboard
+
+Dashboard & UI:
+  --ui, --dashboard                  Open the Web Dashboard in your browser
+
+Testing & Verification:
+  --test [all|zen|google|codex|qwen|qwen-web] Live test connections for configured accounts
+
+OpenCode Zen / Go Account Management:
+  --zen-accounts list                List OpenCode Zen accounts & rate limits
+  --zen-accounts add <api-key>       Add another OpenCode API key
+  --zen-accounts remove <email|id>   Remove an OpenCode account
+  --zen-accounts reset-limits        Force clear all OpenCode rate limit cooldowns
+
+ChatGPT / Codex Account Management:
+  --codex-accounts list              List ChatGPT Plus accounts & rate limits
+  --codex-accounts check             Probe accounts & auto-clear finished limits
+  --codex-accounts reset-limits      Force clear all rate limit cooldowns
+  --codex-accounts add               Add another ChatGPT Plus account
+  --codex-accounts remove            Remove an account
+
+Qwen Chat Account Management:
+  --qwen-accounts list               List Qwen Chat accounts & rate limits
+  --qwen-accounts add                Add a Qwen Chat account (via qwen-agent login)
+  --qwen-accounts reset-limits       Force clear all rate limit cooldowns
+  --qwen-accounts remove <email>     Remove an account
+
+Qwen Web Account Management (direct chat.qwen.ai, unofficial):
+  --qwen-web-accounts list           List Qwen Web accounts & rate limits
+  --qwen-web-accounts add            Add a Qwen Web account (paste browser cookie)
+  --qwen-web-accounts reset-limits   Force clear all rate limit / WAF cooldowns
+  --qwen-web-accounts remove <email> Remove an account
+
+Antigravity Account Management:
+  --accounts list                    List configured Antigravity accounts
+  --accounts check                   Probe live quotas & auto-clear limits
+  --accounts reset-limits            Force clear all Antigravity rate limits
+  --accounts add                     Add another Google account via OAuth
+  --accounts remove                  Remove an account interactively
+
+Other:
+  --provider <name>                  zen, codex, qwen, qwen-web, or antigravity
+  --hybrid                           Use provider routing from config.yaml
+  --config <path>                    Use a different YAML config file
+  --status                           Print all gateways, accounts & token metrics
+  --update [soft|hard]               Sync code changes & restart cleanly
+  --update-soft                      Sync codebase, restart 3 ports, keep data
+  --update-hard                      Sync codebase, kill 3 ports, clear rate limits & caches
+  --kill-ports, --stop               Kill all 3 ports (:8787, :8788, :8789) & watchdog
+  --restart                          Stop all services and restart cleanly
+  -h, --help                         Show this help
+
+Claude Code is always started with --dangerously-skip-permissions.
+EOF
+}
+
+key() { grep '^ZEN_API_KEY=' "$DIR/.env" 2>/dev/null | cut -d= -f2- || true; }
+proxy_up() { curl -sf --max-time 2 "$HEALTH" >/dev/null 2>&1; }
+agw_up() {
+  # /health performs live quota requests in the open-source gateway. Any HTTP
+  # response from this lightweight route proves the local listener is alive.
+  curl -sS --max-time 1 -o /dev/null "http://127.0.0.1:${AGW_PORT}/__claude_zen_liveness" 2>/dev/null
+}
+codex_up() { curl -sf --max-time 2 "$CODEX_HEALTH" >/dev/null 2>&1; }
+
+config_value() {
+  local wanted="$1"
+  [ -f "$CONFIG_FILE" ] || return 0
+  python3 - "$CONFIG_FILE" "$wanted" <<'PY'
+import sys
+path, wanted = sys.argv[1:]
+stack = []
+values = {}
+with open(path, encoding='utf-8') as f:
+    for raw in f:
+        line = raw.split('#', 1)[0].rstrip()
+        if not line.strip() or ':' not in line:
+            continue
+        indent = len(line) - len(line.lstrip(' '))
+        level = indent // 2
+        key, value = line.strip().split(':', 1)
+        key = key.strip(); value = value.strip()
+        stack = stack[:level]
+        if value:
+            value = value.strip('"\'')
+            values['.'.join(stack + [key])] = value
+        else:
+            stack.append(key)
+print(values.get(wanted, ''))
+PY
+}
+
+load_config() {
+  [ -f "$CONFIG_FILE" ] || return
+  ROUTING_MODE="$(config_value mode)"
+  [ -n "$ROUTING_MODE" ] || ROUTING_MODE="zen"
+  local value
+  value="$(config_value providers.zen.go_base_url)"; [ -n "$value" ] && GO_URL="$value"
+  value="$(config_value providers.zen.free_base_url)"; [ -n "$value" ] && FREE_URL="$value"
+  value="$(config_value providers.antigravity.base_url)"; [ -n "$value" ] && AGW_URL="$value"
+  if [ -n "${AGW_URL:-}" ]; then
+    AGW_PORT="${AGW_URL##*:}"
+    AGW_PORT="${AGW_PORT%%/*}"
+    AGW_HEALTH="http://127.0.0.1:${AGW_PORT}/health"
+  fi
+  value="$(config_value providers.codex.base_url)"; [ -n "$value" ] && CODEX_BASE="$value"
+  if [ -n "${CODEX_BASE:-}" ]; then
+    CODEX_PORT="${CODEX_BASE##*:}"
+    CODEX_PORT="${CODEX_PORT%%/*}"
+    CODEX_HEALTH="http://127.0.0.1:${CODEX_PORT}/health"
+  fi
+  value="$(config_value tiers.opus.model)"; [ -n "$value" ] && OPUS_MODEL="$value"
+  value="$(config_value tiers.sonnet.model)"; [ -n "$value" ] && SONNET_MODEL="$value"
+  value="$(config_value tiers.haiku.model)"; [ -n "$value" ] && HAIKU_MODEL="$value"
+  local opus_provider sonnet_provider haiku_provider
+  opus_provider="$(config_value tiers.opus.provider)"
+  sonnet_provider="$(config_value tiers.sonnet.provider)"
+  haiku_provider="$(config_value tiers.haiku.provider)"
+  AGW_MODELS=""
+  [ "$opus_provider" = antigravity ] && AGW_MODELS="$AGW_MODELS,$OPUS_MODEL"
+  [ "$sonnet_provider" = antigravity ] && AGW_MODELS="$AGW_MODELS,$SONNET_MODEL"
+  [ "$haiku_provider" = antigravity ] && AGW_MODELS="$AGW_MODELS,$HAIKU_MODEL"
+  AGW_MODELS="${AGW_MODELS#,}"
+  [ -n "$AGW_MODELS" ] || AGW_MODELS="gemini-3.8-flash-tiered"
+}
+
+start_proxy() {
+  if proxy_up; then return; fi
+  echo "starting zen-proxy..."
+  [ -f "$START" ] || { echo "error: $START not found -- run install.sh" >&2; exit 1; }
+  nohup "$START" >>"$LOG" 2>&1 &
+  for _ in $(seq 1 40); do
+    proxy_up && { echo "zen-proxy up (http://127.0.0.1:${PORT})"; return; }
+    sleep 0.5
+  done
+  echo "error: zen-proxy failed to start; see $LOG" >&2
+  exit 1
+}
+
+start_antigravity() {
+  if agw_up; then return; fi
+  local agw_script agw_workdir
+  if [ "$AGW_IMPL" = "opensource" ]; then
+    agw_workdir="$AGW_OPEN_SOURCE_DIR"
+    agw_script="$agw_workdir/src/index.js"
+  else
+    agw_workdir="$DIR"
+    agw_script="$DIR/antigravity-gateway.mjs"
+    [ -f "$agw_script" ] || agw_script="$(dirname "$0")/../antigravity-gateway.mjs"
+  fi
+  [ -f "$agw_script" ] || {
+    echo "error: Antigravity Gateway not found: $agw_script" >&2
+    return 1
+  }
+  echo "starting Antigravity Gateway ($AGW_IMPL)..."
+  if [ "$AGW_IMPL" = "opensource" ]; then
+    (cd "$agw_workdir" && PORT="$AGW_PORT" nohup node "$agw_script" >>"$AGW_LOG" 2>&1 &)
+  else
+    (cd "$agw_workdir" && ANTIGRAVITY_PORT="$AGW_PORT" nohup node "$agw_script" >>"$AGW_LOG" 2>&1 &)
+  fi
+  for _ in $(seq 1 40); do
+    agw_up && { echo "Antigravity Gateway up (http://127.0.0.1:${AGW_PORT})"; return; }
+    sleep 0.5
+  done
+  echo "error: Antigravity Gateway failed to start; see $AGW_LOG" >&2
+  return 1
+}
+
+start_codex() {
+  if codex_up; then return; fi
+  local gw_script="$DIR/codex-gateway.mjs"
+  [ -f "$gw_script" ] || gw_script="$(dirname "$0")/../codex-gateway.mjs"
+  [ -f "$gw_script" ] || {
+    echo "error: codex-gateway.mjs not found -- run ./install.sh" >&2
+    return 1
+  }
+  echo "starting Codex Gateway..."
+  (cd "$DIR" && CODEX_PORT="$CODEX_PORT" nohup node "$gw_script" >>"$CODEX_LOG" 2>&1 &)
+  for _ in $(seq 1 40); do
+    codex_up && { echo "Codex Gateway up (http://127.0.0.1:${CODEX_PORT})"; return; }
+    sleep 0.5
+  done
+  echo "error: Codex Gateway failed to start; see $CODEX_LOG" >&2
+  return 1
+}
+
+start_watchdog() {
+  local watch_zen="$1" watch_agw="$2" watch_codex="$3"
+  [ -x "$DIR/watchdog.sh" ] || return 0
+  WATCH_ZEN="$watch_zen" WATCH_AGW="$watch_agw" WATCH_CODEX="$watch_codex" \
+    ANTIGRAVITY_GATEWAY_IMPL_OVERRIDE="$AGW_IMPL" \
+    nohup "$DIR/watchdog.sh" >/dev/null 2>&1 &
+}
+
+stop_antigravity_for_switch() {
+  # Stop the old supervisor first, otherwise it can immediately respawn the
+  # previous implementation while the new gateway is starting.
+  local watchdog_pid
+  watchdog_pid="$(cat "$DIR/watchdog.pid" 2>/dev/null || true)"
+  if [ -n "$watchdog_pid" ]; then
+    kill -TERM "$watchdog_pid" 2>/dev/null || true
+  fi
+  if command -v lsof >/dev/null 2>&1; then
+    local gateway_pids
+    gateway_pids="$(lsof -ti :"$AGW_PORT" 2>/dev/null || true)"
+    if [ -n "$gateway_pids" ]; then
+      echo "$gateway_pids" | xargs kill -TERM 2>/dev/null || true
+      sleep 0.2
+    fi
+  fi
+}
+
+codex_accounts_cli() {
+  local cmd="$1"
+  start_codex >/dev/null 2>&1 || true
+  node -e "
+    import('$DIR/lib/codex-accounts.mjs').then(async ({ codexAccountManager }) => {
+      await codexAccountManager.init();
+      const cmd = '$cmd';
+      if (cmd === 'list' || cmd === 'check') {
+        const list = codexAccountManager.listAccounts();
+        console.log('\nChatGPT Plus / Codex Accounts:');
+        if (!list.length) console.log('  No accounts found.');
+        for (const a of list) {
+          const statusStr = a.status === 'rate_limited'
+            ? \`\x1b[33mRate-Limited (\${Math.ceil(a.cooldown_remaining_sec/60)}m left)\x1b[0m\`
+            : \`\x1b[32mActive\x1b[0m\`;
+          const activeStr = a.is_current_active ? ' [Current Active]' : '';
+          console.log(\`  - \${a.email} (\${a.plan_type.toUpperCase()}) -> \${statusStr}\${activeStr}\`);
+        }
+        console.log('');
+      } else if (cmd === 'reset-limits') {
+        codexAccountManager.resetAllLimits();
+        console.log('\n\x1b[32mok\x1b[0m  All ChatGPT rate limit cooldowns reset.\n');
+      } else if (cmd === 'add') {
+        console.log('\nTo add an account, paste the content of auth.json or run: claude-zen --ui\n');
+      } else if (cmd === 'remove') {
+        const email = process.argv[1];
+        if (email) {
+          codexAccountManager.removeAccount(email);
+          console.log(\`Removed account \${email}\`);
+        } else {
+          console.log('Usage: claude-zen --codex-accounts remove <email>');
+        }
+      }
+    });
+  " "${2:-}"
+}
+
+qwen_accounts_cli() {
+  local cmd="$1"
+  node -e "
+    import('$DIR/lib/qwen-accounts.mjs').then(async ({ qwenAccountManager }) => {
+      qwenAccountManager.init();
+      const cmd = '$cmd';
+      if (cmd === 'list' || cmd === 'check') {
+        const list = qwenAccountManager.listAccounts();
+        console.log('\nQwen Chat Accounts:');
+        if (!list.length) console.log('  No accounts found. Run: qwen-agent login');
+        for (const a of list) {
+          const statusStr = a.status === 'rate_limited'
+            ? \`\x1b[33mRate-Limited (\${Math.ceil(a.cooldown_remaining_sec/60)}m left)\x1b[0m\`
+            : \`\x1b[32mActive\x1b[0m\`;
+          const activeStr = a.is_current_active ? ' [Current Active]' : '';
+          console.log(\`  - \${a.email} (\${a.key_preview}) -> \${statusStr}\${activeStr}\`);
+        }
+        console.log('');
+      } else if (cmd === 'reset-limits') {
+        qwenAccountManager.resetAllLimits();
+        console.log('\n\x1b[32mok\x1b[0m  All Qwen Chat rate limit cooldowns reset.\n');
+      } else if (cmd === 'add') {
+        console.log('\nTo add a Qwen Chat account, run: qwen-agent login   (or) qwen-agent set-token <token>\n');
+      } else if (cmd === 'remove') {
+        const email = process.argv[1];
+        if (email) {
+          qwenAccountManager.removeAccount(email);
+          console.log(\`Removed account \${email}\`);
+        } else {
+          console.log('Usage: claude-zen --qwen-accounts remove <email>');
+        }
+      }
+    });
+  " "${2:-}"
+}
+
+qwen_web_accounts_cli() {
+  local cmd="$1"
+  node -e "
+    import('$DIR/lib/qwen-web-accounts.mjs').then(async ({ qwenWebAccountManager }) => {
+      qwenWebAccountManager.init();
+      const cmd = '$cmd';
+      if (cmd === 'list' || cmd === 'check') {
+        const list = qwenWebAccountManager.listAccounts();
+        console.log('\nQwen Web Accounts (direct chat.qwen.ai):');
+        if (!list.length) console.log('  No accounts found. Run: claude-zen --qwen-web-accounts add');
+        for (const a of list) {
+          const statusStr = a.status === 'rate_limited'
+            ? \`\x1b[33mRate-Limited/Blocked (\${Math.ceil(a.cooldown_remaining_sec/60)}m left)\x1b[0m\`
+            : \`\x1b[32mActive\x1b[0m\`;
+          const activeStr = a.is_current_active ? ' [Current Active]' : '';
+          console.log(\`  - \${a.email} (\${a.key_preview}) -> \${statusStr}\${activeStr}\`);
+        }
+        console.log('');
+      } else if (cmd === 'reset-limits') {
+        qwenWebAccountManager.resetAllLimits();
+        console.log('\n\x1b[32mok\x1b[0m  All Qwen Web rate limit / WAF cooldowns reset.\n');
+      } else if (cmd === 'add') {
+        const readline = await import('node:readline');
+        console.log(\`
+=====================================================
+  Qwen Web Cookie Setup (direct chat.qwen.ai, unofficial)
+=====================================================
+
+1. Open https://chat.qwen.ai in your browser and log in.
+2. Open DevTools (F12) -> Application/Storage tab -> Cookies -> https://chat.qwen.ai
+   (or Network tab -> any request to chat.qwen.ai -> Request Headers -> 'cookie').
+3. Copy the FULL cookie string (all name=value pairs, semicolon-separated).
+   A partial cookie (just the token) may work briefly but gets blocked by
+   Qwen's anti-bot WAF sooner -- paste the whole jar for reliability.
+
+This talks to chat.qwen.ai's internal web API directly, not an official API.
+It can break if Qwen changes their frontend, and sustained automated traffic
+risks your account getting flagged. Use at your own discretion.
+\`);
+        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+        rl.question('Paste your full Cookie string here: ', (cookie) => {
+          rl.close();
+          const clean = cookie.trim();
+          if (!clean) { console.error('No cookie provided.'); process.exit(1); }
+          try {
+            const acc = qwenWebAccountManager.addAccountFromCookie({ cookie: clean });
+            console.log(\`\nSaved as \${acc.email}. Verifying...\`);
+            qwenWebAccountManager.testAccount(acc.id).then((res) => {
+              console.log(\`\x1b[32mok\x1b[0m  Verified in \${res.durationMs}ms -> \"\${res.responseText}\"\`);
+            }).catch((err) => {
+              console.error(\`\x1b[33mwarn\x1b[0m  Saved, but the test call failed: \${err.message}\`);
+              console.error('The cookie may be incomplete or already blocked -- try re-pasting the full cookie jar.');
+            });
+          } catch (err) {
+            console.error('Failed to save:', err.message);
+            process.exit(1);
+          }
+        });
+      } else if (cmd === 'remove') {
+        const email = process.argv[1];
+        if (email) {
+          qwenWebAccountManager.removeAccount(email);
+          console.log(\`Removed account \${email}\`);
+        } else {
+          console.log('Usage: claude-zen --qwen-web-accounts remove <email>');
+        }
+      }
+    });
+  " "${2:-}"
+}
+
+agw_accounts() {
+  local cmd="$1"
+  local arg1="${2:-}"
+  local arg2="${3:-}"
+  start_antigravity >/dev/null 2>&1 || true
+  node -e "
+    import('$DIR/lib/antigravity-accounts.mjs').then(async ({ antigravityAccountManager }) => {
+      await antigravityAccountManager.init();
+      const cmd = '$cmd';
+      const arg1 = '$arg1';
+      const arg2 = '$arg2';
+      if (cmd === 'list' || cmd === 'check') {
+        const list = antigravityAccountManager.listAccounts();
+        console.log('\nAntigravity / Google Accounts:');
+        if (!list.length) console.log('  No accounts found.');
+        for (const a of list) {
+          const statusStr = a.status === 'rate_limited'
+            ? \`\x1b[33mRate-Limited (\${Math.ceil(a.cooldown_remaining_sec/60)}m left)\x1b[0m\`
+            : \`\x1b[32mActive\x1b[0m\`;
+          const activeStr = a.is_current_active ? ' [Current Active]' : '';
+          console.log(\`  - \${a.email} (\${a.plan_type}) [\${a.account_id}] -> \${statusStr}\${activeStr}\`);
+        }
+        console.log('');
+      } else if (cmd === 'reset-limits') {
+        antigravityAccountManager.resetAllLimits();
+        console.log('\n\x1b[32mok\x1b[0m  All Antigravity rate limit cooldowns reset.\n');
+      } else if (cmd === 'add') {
+        if (arg1 && arg1.length > 20) {
+          try {
+            let refreshToken = arg1;
+            let email = arg2 || null;
+            if (arg1.includes('{')) {
+              try {
+                const parsed = JSON.parse(arg1);
+                refreshToken = parsed.refreshToken || parsed.refresh_token || parsed.tokens?.refresh_token || parsed.accessToken || parsed.access_token;
+                email = email || parsed.email;
+              } catch {}
+            }
+            const res = await antigravityAccountManager.addAccountFromRefreshToken({
+              refreshToken,
+              email,
+            });
+            console.log(\`\n\x1b[32mok\x1b[0m  Added Google Antigravity account: \${res.email} (Project: \${res.projectId})\n\`);
+          } catch (err) {
+            console.error(\`\n\x1b[31merror\x1b[0m  Failed to add account: \${err.message}\n\`);
+            process.exit(1);
+          }
+        } else {
+          console.log('\nStarting Google OAuth authorization for Antigravity...');
+          console.log('A browser window will open. If it does not, open the URL below:\n');
+          try {
+            const res = await antigravityAccountManager.loginWithOAuth({
+              openBrowser: true,
+              onUrl: (url) => {
+                console.log(\`\x1b[36m\${url}\x1b[0m\n\`);
+                console.log('Waiting for authorization callback on http://localhost:51121/oauth-callback ...\n');
+              },
+            });
+            console.log(\`\x1b[32mok\x1b[0m  Connected Google account: \${res.email} (Project: \${res.projectId})\n\`);
+          } catch (err) {
+            console.error(\`\n\x1b[31merror\x1b[0m  OAuth error: \${err.message}\n\`);
+            process.exit(1);
+          }
+        }
+      } else if (cmd === 'test') {
+        const list = antigravityAccountManager.listAccounts();
+        if (!list.length) {
+          console.log('\nNo Antigravity accounts configured. Add one with `claude-zen --accounts add`\n');
+          process.exit(1);
+        }
+        const target = arg1 ? (list.find((a) => a.email === arg1 || a.id === arg1) || list[0]) : list[0];
+        console.log(\`\nTesting Antigravity Google connection for \${target.email} ...\`);
+        try {
+          const res = await antigravityAccountManager.testAccount(target.id);
+          console.log(\`\x1b[32m✔ Verified in \${res.durationMs}ms!\x1b[0m Response: "\${res.responseText}"\n\`);
+        } catch (err) {
+          console.error(\`\x1b[31m✖ Test failed:\x1b[0m \${err.message}\n\`);
+          process.exit(1);
+        }
+      } else if (cmd === 'remove') {
+        if (arg1) {
+          antigravityAccountManager.removeAccount(arg1);
+          console.log(\`Removed account \${arg1}\`);
+        } else {
+          console.log('Usage: claude-zen --accounts remove <email>');
+        }
+      }
+    });
+  "
+}
+
+zen_accounts_cli() {
+  local cmd="$1"
+  local arg="${2:-}"
+  node -e "
+    import('$DIR/lib/zen-accounts.mjs').then(async ({ zenAccountManager }) => {
+      await zenAccountManager.init();
+      const cmd = '$cmd';
+      const arg = '$arg';
+      if (cmd === 'list' || cmd === 'check') {
+        const list = zenAccountManager.listAccounts();
+        console.log('\nOpenCode Zen / Go Accounts:');
+        if (!list.length) console.log('  No accounts found.');
+        for (const a of list) {
+          const statusStr = a.status === 'rate_limited'
+            ? \`\x1b[33mRate-Limited (\${Math.ceil(a.cooldown_remaining_sec/60)}m left)\x1b[0m\`
+            : \`\x1b[32mActive\x1b[0m\`;
+          const activeStr = a.is_current_active ? ' [Current Active]' : '';
+          console.log(\`  - \${a.email} (\${a.plan_type}) [\${a.key_preview}] -> \${statusStr}\${activeStr}\`);
+        }
+        console.log('');
+      } else if (cmd === 'reset-limits') {
+        zenAccountManager.resetAllLimits();
+        console.log('\n\x1b[32mok\x1b[0m  All OpenCode Zen rate limit cooldowns reset.\n');
+      } else if (cmd === 'test') {
+        const list = zenAccountManager.listAccounts();
+        if (!list.length) {
+          console.log('\nNo OpenCode Zen accounts configured. Add one with \`claude-zen --zen-accounts add <sk-...>\`\n');
+          process.exit(1);
+        }
+        const target = arg ? (list.find((a) => a.email === arg || a.id === arg) || list[0]) : list[0];
+        console.log(\`\nTesting OpenCode Zen connection for \${target.email} ...\`);
+        try {
+          const res = await zenAccountManager.testAccount(target.id);
+          console.log(\`\x1b[32m✔ Verified in \${res.durationMs}ms!\x1b[0m Response: "\${res.responseText}"\n\`);
+        } catch (err) {
+          console.error(\`\x1b[31m✖ Test failed:\x1b[0m \${err.message}\n\`);
+          process.exit(1);
+        }
+      } else if (cmd === 'add') {
+        const key = arg || process.env.ZEN_KEY_INPUT;
+        if (key && key.startsWith('sk-')) {
+          const res = zenAccountManager.addAccountFromApiKey({ apiKey: key });
+          console.log(\`\n\x1b[32mok\x1b[0m  Added OpenCode Zen account: \${res.email}\n\`);
+        } else {
+          console.log('Usage: claude-zen --zen-accounts add <api-key>');
+          console.log('Or add accounts via Web Dashboard at http://127.0.0.1:${CODEX_PORT}/dashboard');
+        }
+      } else if (cmd === 'remove') {
+        if (arg) {
+          zenAccountManager.removeAccount(arg);
+          console.log(\`Removed OpenCode account \${arg}\`);
+        } else {
+          console.log('Usage: claude-zen --zen-accounts remove <email|id>');
+        }
+      }
+    });
+  "
+}
+
+test_connections() {
+  local target="${1:-all}"
+  echo ""
+  echo "Testing Claude-Zen Provider Connections ($target)..."
+  echo "=================================================="
+  node -e "
+    Promise.all([
+      import('$DIR/lib/codex-accounts.mjs').then(m => m.codexAccountManager.init()),
+      import('$DIR/lib/antigravity-accounts.mjs').then(m => m.antigravityAccountManager.init()),
+      import('$DIR/lib/zen-accounts.mjs').then(m => m.zenAccountManager.init()),
+      import('$DIR/lib/qwen-accounts.mjs').then(m => m.qwenAccountManager.init()),
+      import('$DIR/lib/qwen-web-accounts.mjs').then(m => m.qwenWebAccountManager.init()),
+    ]).then(async () => {
+      const { codexAccountManager } = await import('$DIR/lib/codex-accounts.mjs');
+      const { antigravityAccountManager } = await import('$DIR/lib/antigravity-accounts.mjs');
+      const { zenAccountManager } = await import('$DIR/lib/zen-accounts.mjs');
+      const { qwenAccountManager } = await import('$DIR/lib/qwen-accounts.mjs');
+      const { qwenWebAccountManager } = await import('$DIR/lib/qwen-web-accounts.mjs');
+
+      const target = '$target';
+
+      if (target === 'all' || target === 'antigravity' || target === 'google') {
+        const agwList = antigravityAccountManager.listAccounts();
+        console.log('\n[Antigravity / Google Accounts: ' + agwList.length + ']');
+        if (!agwList.length) console.log('  No Antigravity accounts configured.');
+        for (const a of agwList) {
+          process.stdout.write('  - ' + a.email + ' ... ');
+          try {
+            const res = await antigravityAccountManager.testAccount(a.id);
+            console.log('\x1b[32m✔ OK\x1b[0m (' + res.durationMs + 'ms) -> \"' + (res.responseText || 'OK') + '\"');
+          } catch (e) {
+            console.log('\x1b[31m✖ FAILED\x1b[0m -> ' + e.message);
+          }
+        }
+      }
+
+      if (target === 'all' || target === 'zen' || target === 'opencode') {
+        const zenList = zenAccountManager.listAccounts();
+        console.log('\n[OpenCode Zen Accounts: ' + zenList.length + ']');
+        if (!zenList.length) console.log('  No OpenCode Zen accounts configured.');
+        for (const a of zenList) {
+          process.stdout.write('  - ' + a.email + ' ... ');
+          try {
+            const res = await zenAccountManager.testAccount(a.id);
+            console.log('\x1b[32m✔ OK\x1b[0m (' + res.durationMs + 'ms) -> \"' + (res.responseText || 'OK') + '\"');
+          } catch (e) {
+            console.log('\x1b[31m✖ FAILED\x1b[0m -> ' + e.message);
+          }
+        }
+      }
+
+      if (target === 'all' || target === 'codex' || target === 'chatgpt') {
+        const codexList = codexAccountManager.listAccounts().filter(a => a.provider === 'codex');
+        console.log('\n[ChatGPT Plus / Codex Accounts: ' + codexList.length + ']');
+        if (!codexList.length) console.log('  No ChatGPT Plus accounts configured.');
+        for (const a of codexList) {
+          process.stdout.write('  - ' + a.email + ' ... ');
+          try {
+            const res = await codexAccountManager.testAccount(a.id);
+            console.log('\x1b[32m✔ OK\x1b[0m -> ' + res.responseText);
+          } catch (e) {
+            console.log('\x1b[31m✖ FAILED\x1b[0m -> ' + e.message);
+          }
+        }
+      }
+
+      if (target === 'all' || target === 'qwen') {
+        const qwenList = qwenAccountManager.listAccounts();
+        console.log('\n[Qwen Chat Accounts: ' + qwenList.length + ']');
+        if (!qwenList.length) console.log('  No Qwen Chat accounts configured.');
+        for (const a of qwenList) {
+          process.stdout.write('  - ' + a.email + ' ... ');
+          try {
+            const res = await qwenAccountManager.testAccount(a.id);
+            console.log('\x1b[32m✔ OK\x1b[0m (' + res.durationMs + 'ms) -> \"' + (res.responseText || 'OK') + '\"');
+          } catch (e) {
+            console.log('\x1b[31m✖ FAILED\x1b[0m -> ' + e.message);
+          }
+        }
+      }
+
+      if (target === 'all' || target === 'qwen-web') {
+        const qwenWebList = qwenWebAccountManager.listAccounts();
+        console.log('\n[Qwen Web Accounts (chat.qwen.ai): ' + qwenWebList.length + ']');
+        if (!qwenWebList.length) console.log('  No Qwen Web accounts configured.');
+        for (const a of qwenWebList) {
+          process.stdout.write('  - ' + a.email + ' ... ');
+          try {
+            const res = await qwenWebAccountManager.testAccount(a.id);
+            console.log('\x1b[32m✔ OK\x1b[0m (' + res.durationMs + 'ms) -> \"' + (res.responseText || 'OK') + '\"');
+          } catch (e) {
+            console.log('\x1b[31m✖ FAILED\x1b[0m -> ' + e.message);
+          }
+        }
+      }
+      console.log('');
+    });
+  "
+}
+
+status() {
+  echo ""
+  echo "Claude-Zen Gateway Status"
+  echo "========================="
+  proxy_up && echo "Zen Proxy:           \033[32mUP\033[0m   (http://127.0.0.1:${PORT})" || echo "Zen Proxy:           \033[31mDOWN\033[0m (:8787)"
+  agw_up && echo "Antigravity Gateway: \033[32mUP\033[0m   (http://127.0.0.1:${AGW_PORT})" || echo "Antigravity Gateway: \033[33mDOWN\033[0m (:8788)"
+  codex_up && echo "Codex Gateway:       \033[32mUP\033[0m   (http://127.0.0.1:${CODEX_PORT})" || echo "Codex Gateway:       \033[33mDOWN\033[0m (:8789)"
+  echo "Web Dashboard:       http://127.0.0.1:${CODEX_PORT}/dashboard"
+  echo ""
+  printf 'Configured tiers:\n  opus:   %s\n  sonnet: %s\n  haiku:  %s\n' "$OPUS_MODEL" "$SONNET_MODEL" "$HAIKU_MODEL"
+  echo ""
+
+  # Query metrics from SQLite DB
+  node -e "
+    import('$DIR/lib/db.mjs').then(({ getStats }) => {
+      const s = getStats();
+      console.log('Token Usage Metrics:');
+      console.log(\`  Today's Tokens:    \${(s.today.total_tokens || 0).toLocaleString()} (In: \${(s.today.input_tokens || 0).toLocaleString()} | Out: \${(s.today.output_tokens || 0).toLocaleString()})\`);
+      console.log(\`  All-Time Tokens:   \${(s.all_time.total_tokens || 0).toLocaleString()} across \${s.all_time.total_requests || 0} turns\`);
+      console.log(\`  Active Accounts:   \${s.accounts_summary.available || 0} / \${s.accounts_summary.total || 0} available\`);
+      console.log('');
+    }).catch(() => {});
+  " 2>/dev/null || true
+}
+
+kill_all_ports() {
+  if [ -f "$DIR/clean-ports.sh" ]; then
+    CLAUDE_ZEN_DIR="$DIR" ZEN_PROXY_PORT="$PORT" ANTIGRAVITY_PORT="$AGW_PORT" CODEX_PORT="$CODEX_PORT" \
+      bash "$DIR/clean-ports.sh"
+    return $?
+  fi
+  local script_dir
+  script_dir="$(cd "$(dirname "$0")/.." && pwd)"
+  if [ -f "$script_dir/clean-ports.sh" ]; then
+    CLAUDE_ZEN_DIR="$DIR" ZEN_PROXY_PORT="$PORT" ANTIGRAVITY_PORT="$AGW_PORT" CODEX_PORT="$CODEX_PORT" \
+      bash "$script_dir/clean-ports.sh"
+    return $?
+  fi
+
+  # Inline fallback
+  if [ -f "$DIR/watchdog.pid" ]; then
+    local wpid
+    wpid="$(cat "$DIR/watchdog.pid" 2>/dev/null || true)"
+    [ -n "$wpid" ] && kill -9 "$wpid" 2>/dev/null || true
+    rm -f "$DIR/watchdog.pid"
+  fi
+  pkill -f "$DIR/watchdog.sh" 2>/dev/null || true
+  rm -rf "$DIR"/watchdog.lock.d* 2>/dev/null || true
+  pkill -f "$DIR/zen-proxy.mjs" 2>/dev/null || true
+  pkill -f "$DIR/antigravity-gateway.mjs" 2>/dev/null || true
+  pkill -f "$DIR/codex-gateway.mjs" 2>/dev/null || true
+
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -ti :"$PORT",:"$AGW_PORT",:"$CODEX_PORT" 2>/dev/null | xargs kill -9 2>/dev/null || true
+  fi
+  echo "All Claude-Zen ports and background processes killed."
+}
+
+update_claude_zen() {
+  local mode="${1:-soft}"
+  local src=""
+  if [ -f "$PWD/zen-proxy.mjs" ] && [ -f "$PWD/codex-gateway.mjs" ]; then
+    src="$PWD"
+  else
+    local script_parent
+    script_parent="$(cd "$(dirname "$0")/.." && pwd)"
+    if [ -f "$script_parent/zen-proxy.mjs" ]; then
+      src="$script_parent"
+    fi
+  fi
+
+  if [ -n "$src" ] && [ -f "$src/update.sh" ]; then
+    CLAUDE_ZEN_DIR="$DIR" CLAUDE_ZEN_BIN="$HOME/.local/bin" bash "$src/update.sh" "$mode"
+  elif [ -f "$DIR/update.sh" ]; then
+    CLAUDE_ZEN_DIR="$DIR" CLAUDE_ZEN_BIN="$HOME/.local/bin" bash "$DIR/update.sh" "$mode"
+  else
+    kill_all_ports
+    echo "Syncing files..."
+    if [ -n "$src" ]; then
+      mkdir -p "$DIR/lib" "$HOME/.local/bin"
+      for f in zen-proxy.mjs codex-gateway.mjs antigravity-gateway.mjs config.yaml start.sh watchdog.sh; do
+        [ -f "$src/$f" ] && cp "$src/$f" "$DIR/$f"
+      done
+      cp -r "$src/lib/"* "$DIR/lib/" 2>/dev/null || true
+      [ -f "$src/bin/claude-zen" ] && cp "$src/bin/claude-zen" "$HOME/.local/bin/claude-zen" && chmod 755 "$HOME/.local/bin/claude-zen"
+      chmod 755 "$DIR/start.sh" "$DIR/watchdog.sh" 2>/dev/null || true
+    fi
+    if [ "$mode" = "hard" ]; then
+      node "$DIR/lib/cleanup.mjs" --hard 2>/dev/null || true
+    fi
+    echo "Update complete ($mode)."
+  fi
+}
+
+load_config
+
+if [ -n "$ANTIGRAVITY_VARIANT_OVERRIDE" ]; then
+  AGW_IMPL="$ANTIGRAVITY_VARIANT_OVERRIDE"
+fi
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -m)       MODEL="$2"; MODEL_EXPLICIT=1; shift 2 ;;
+    -m=*)     MODEL="${1#-m=}"; MODEL_EXPLICIT=1; shift ;;
+    --provider) PROVIDER="$2"; PROVIDER_EXPLICIT=1; shift 2 ;;
+    --provider=*) PROVIDER="${1#--provider=}"; PROVIDER_EXPLICIT=1; shift ;;
+    --codex)  PROVIDER="codex"; PROVIDER_EXPLICIT=1; shift ;;
+    --antigravity) PROVIDER="antigravity"; PROVIDER_EXPLICIT=1; shift ;;
+    --qwen) PROVIDER="qwen"; PROVIDER_EXPLICIT=1; shift ;;
+    --qwen-web) PROVIDER="qwen-web"; PROVIDER_EXPLICIT=1; shift ;;
+    --hybrid) FORCE_HYBRID=1; shift ;;
+    --ui|--dashboard)
+      start_codex >/dev/null 2>&1 || true
+      open "http://127.0.0.1:${CODEX_PORT}/dashboard" || echo "Open http://127.0.0.1:${CODEX_PORT}/dashboard"
+      exit 0
+      ;;
+    --config) CONFIG_FILE="$2"; load_config; shift 2 ;;
+    --config=*) CONFIG_FILE="${1#--config=}"; load_config; shift ;;
+    --kill-ports|--kill|--stop|--down)
+      kill_all_ports
+      exit 0
+      ;;
+    --restart)
+      kill_all_ports
+      echo "Restarting services..."
+      start_proxy
+      start_antigravity >/dev/null 2>&1 || true
+      start_codex >/dev/null 2>&1 || true
+      start_watchdog 1 1 1
+      status
+      exit 0
+      ;;
+    --update)
+      shift
+      UPDATE_MODE="${1:-soft}"
+      if [ "$UPDATE_MODE" = "hard" ] || [ "$UPDATE_MODE" = "soft" ]; then
+        shift || true
+      else
+        UPDATE_MODE="soft"
+      fi
+      update_claude_zen "$UPDATE_MODE"
+      exit 0
+      ;;
+    --update=*)
+      UPDATE_MODE="${1#--update=}"
+      [ "$UPDATE_MODE" = "hard" ] || UPDATE_MODE="soft"
+      update_claude_zen "$UPDATE_MODE"
+      exit 0
+      ;;
+    --update-soft)
+      update_claude_zen "soft"
+      exit 0
+      ;;
+    --update-hard)
+      update_claude_zen "hard"
+      exit 0
+      ;;
+    --zen-accounts)
+      ZEN_ACCOUNT_COMMAND="${2:-list}"
+      ZEN_ACCOUNT_ARG="${3:-}"
+      shift 2
+      [ -n "$ZEN_ACCOUNT_ARG" ] && shift
+      ;;
+    --codex-accounts)
+      CODEX_ACCOUNT_COMMAND="${2:-list}"
+      shift 2
+      ;;
+    --qwen-accounts)
+      QWEN_ACCOUNT_COMMAND="${2:-list}"
+      shift 2
+      ;;
+    --qwen-web-accounts)
+      QWEN_WEB_ACCOUNT_COMMAND="${2:-list}"
+      shift 2
+      ;;
+    --accounts)
+      ACCOUNT_COMMAND="${2:-help}"
+      shift 2
+      ;;
+    --test)
+      TEST_TARGET="${2:-all}"
+      if [ "$TEST_TARGET" = "zen" ] || [ "$TEST_TARGET" = "antigravity" ] || [ "$TEST_TARGET" = "codex" ] || [ "$TEST_TARGET" = "qwen" ] || [ "$TEST_TARGET" = "qwen-web" ] || [ "$TEST_TARGET" = "all" ]; then
+        shift 2 || shift
+      else
+        TEST_TARGET="all"
+        shift
+      fi
+      test_connections "$TEST_TARGET"
+      exit 0
+      ;;
+    --test=*)
+      test_connections "${1#--test=}"
+      exit 0
+      ;;
+    --status) status; exit 0 ;;
+    -h|--help) usage; exit 0 ;;
+    --)       shift; break ;;
+    *)        break ;;
+  esac
+done
+
+[ "$FORCE_HYBRID" = 1 ] && ROUTING_MODE="hybrid"
+
+if [ -n "$ZEN_ACCOUNT_COMMAND" ]; then
+  zen_accounts_cli "$ZEN_ACCOUNT_COMMAND" "$ZEN_ACCOUNT_ARG"
+  exit 0
+fi
+
+if [ -n "$CODEX_ACCOUNT_COMMAND" ]; then
+  codex_accounts_cli "$CODEX_ACCOUNT_COMMAND" "$@"
+  exit 0
+fi
+
+if [ -n "$QWEN_ACCOUNT_COMMAND" ]; then
+  qwen_accounts_cli "$QWEN_ACCOUNT_COMMAND" "$@"
+  exit 0
+fi
+
+if [ -n "$QWEN_WEB_ACCOUNT_COMMAND" ]; then
+  qwen_web_accounts_cli "$QWEN_WEB_ACCOUNT_COMMAND" "$@"
+  exit 0
+fi
+
+if [ -n "$ACCOUNT_COMMAND" ]; then
+  agw_accounts "$ACCOUNT_COMMAND" "$@"
+  exit $?
+fi
+
+case "$PROVIDER" in
+  codex)
+    start_codex
+    [ "$MODEL_EXPLICIT" = 1 ] || MODEL="gpt-5.6-sol"
+    OPUS_MODEL="$MODEL"; SONNET_MODEL="$MODEL"; HAIKU_MODEL="$MODEL"
+    start_watchdog 0 0 1
+    export ANTHROPIC_BASE_URL="http://127.0.0.1:${CODEX_PORT}"
+    export ANTHROPIC_AUTH_TOKEN="codex-local-gateway"
+    ;;
+  qwen)
+    start_proxy
+    start_codex >/dev/null 2>&1 || true
+    start_antigravity >/dev/null 2>&1 || true
+    start_watchdog 1 1 1
+    [ "$MODEL_EXPLICIT" = 1 ] || MODEL="$QWEN_DEFAULT_MODEL"
+    case "$MODEL" in
+      qwen-chat:*) ;;
+      *) MODEL="qwen-chat:${MODEL}" ;;
+    esac
+    OPUS_MODEL="$MODEL"; SONNET_MODEL="$MODEL"; HAIKU_MODEL="$MODEL"
+    export ANTHROPIC_BASE_URL="http://127.0.0.1:${PORT}"
+    export ANTHROPIC_AUTH_TOKEN="zen-local-proxy"
+    ;;
+  qwen-web)
+    start_proxy
+    start_codex >/dev/null 2>&1 || true
+    start_antigravity >/dev/null 2>&1 || true
+    start_watchdog 1 1 1
+    [ "$MODEL_EXPLICIT" = 1 ] || MODEL="$QWEN_DEFAULT_MODEL"
+    case "$MODEL" in
+      qwen-web:*) ;;
+      *) MODEL="qwen-web:${MODEL}" ;;
+    esac
+    OPUS_MODEL="$MODEL"; SONNET_MODEL="$MODEL"; HAIKU_MODEL="$MODEL"
+    export ANTHROPIC_BASE_URL="http://127.0.0.1:${PORT}"
+    export ANTHROPIC_AUTH_TOKEN="zen-local-proxy"
+    ;;
+  antigravity)
+    [ "$MODEL_EXPLICIT" = 1 ] || MODEL="gemini-3.8-flash-tiered"
+    OPUS_MODEL="$MODEL"; SONNET_MODEL="$MODEL"; HAIKU_MODEL="$MODEL"
+    # Keep direct Antigravity selection explicit while sending it through the
+    # local Zen proxy, which is the shared activity recorder. The proxy then
+    # forwards the Anthropic-native request unchanged to port 8788.
+    export ANTIGRAVITY_MODELS="${AGW_MODELS},${MODEL}"
+    [ -z "$ANTIGRAVITY_VARIANT_OVERRIDE" ] || stop_antigravity_for_switch
+    start_antigravity
+    start_proxy
+    start_codex >/dev/null 2>&1 || true
+    start_watchdog 1 1 1
+    export ANTHROPIC_BASE_URL="http://127.0.0.1:${PORT}"
+    export ANTHROPIC_AUTH_TOKEN="zen-local-proxy"
+    ;;
+  zen)
+    start_proxy
+    start_codex >/dev/null 2>&1 || true
+    start_antigravity >/dev/null 2>&1 || true
+    start_watchdog 1 1 1
+    if [ "$ROUTING_MODE" = hybrid ] && [ "$MODEL_EXPLICIT" != 1 ]; then
+      # Stable aliases let the proxy resolve the active dashboard profile on
+      # every request. Changing profiles therefore needs no Claude restart.
+      OPUS_MODEL="claude-zen-opus"
+      SONNET_MODEL="claude-zen-sonnet"
+      HAIKU_MODEL="claude-zen-haiku"
+      MODEL="$SONNET_MODEL"
+    fi
+    export ANTHROPIC_BASE_URL="http://127.0.0.1:${PORT}"
+    export ANTHROPIC_AUTH_TOKEN="zen-local-proxy"
+    ;;
+  *)
+    echo "error: unknown provider '$PROVIDER' (use zen, codex, qwen, qwen-web, or antigravity)" >&2
+    exit 1
+    ;;
+esac
+
+export ANTHROPIC_MODEL="$MODEL"
+export ANTHROPIC_SMALL_FAST_MODEL="$HAIKU_MODEL"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="$OPUS_MODEL"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="$SONNET_MODEL"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="$HAIKU_MODEL"
+export CLAUDE_CODE_MAX_CONTEXT_TOKENS=1000000
+export CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT=1
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+export ENABLE_TOOL_SEARCH=true
+unset ANTHROPIC_API_KEY
+
+SETTINGS_JSON="$(printf '{"env":{"ANTHROPIC_MODEL":"%s","ANTHROPIC_SMALL_FAST_MODEL":"%s","ANTHROPIC_DEFAULT_OPUS_MODEL":"%s","ANTHROPIC_DEFAULT_SONNET_MODEL":"%s","ANTHROPIC_DEFAULT_HAIKU_MODEL":"%s"}}' \
+  "$MODEL" "$HAIKU_MODEL" "$OPUS_MODEL" "$SONNET_MODEL" "$HAIKU_MODEL")"
+
+CLAUDE_BIN="$(command -v claude || true)"
+[ -n "$CLAUDE_BIN" ] || { echo "error: claude not found on PATH" >&2; exit 1; }
+exec "$CLAUDE_BIN" --model "$MODEL" --settings "$SETTINGS_JSON" --dangerously-skip-permissions "$@"

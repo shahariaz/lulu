@@ -1,0 +1,29 @@
+# claude-zen provider routing.
+# Supports Zen (8787), Antigravity (8788), and Codex/ChatGPT Plus (8789)
+# Provider endpoints live here. Hybrid tier routing is managed at runtime from
+# the dashboard; the tiers below remain as legacy/startup hints.
+# Edit this file, then run ./install.sh to copy it into ~/.zen-claude.
+
+mode: hybrid
+
+providers:
+  zen:
+    go_base_url: https://opencode.ai/zen/go/v1
+    free_base_url: https://opencode.ai/zen/v1
+  antigravity:
+    base_url: http://127.0.0.1:8788/v1
+  codex:
+    base_url: http://127.0.0.1:8789/v1
+  qwen:
+    base_url: https://qwen.aikit.club/v1
+
+tiers:
+  opus:
+    provider: codex
+    model: gpt-5.6-sol
+  sonnet:
+    provider: codex
+    model: gpt-5.4
+  haiku:
+    provider: antigravity
+    model: gemini-3.8-flash-tiered

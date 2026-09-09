@@ -1,0 +1,5 @@
+.env
+*.log
+proxy.log
+*.zip
+.DS_Store

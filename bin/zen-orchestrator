@@ -1,0 +1,30 @@
+#!/usr/bin/env node
+// Claude-Zen Delivery Platform & Cockpit Daemon
+
+import { startOrchestratorServer } from '../lib/orchestrator/api.mjs'
+
+const PORT = Number(process.env.ZEN_ORCHESTRATOR_PORT || 8900)
+
+try {
+  const { url } = await startOrchestratorServer({ port: PORT })
+
+  console.log(`\n========================================================`)
+  console.log(`  🚀 Claude-Zen Autonomous Delivery Platform Running!`)
+  console.log(`  ----------------------------------------------------`)
+  console.log(`  Cockpit UI:  ${url}/`)
+  console.log(`  Delivery:    ${url}/delivery`)
+  console.log(`  API Base:    ${url}/api/orchestrator/`)
+  console.log(`  Events SSE:  ${url}/api/orchestrator/events`)
+  console.log(`  Port:        ${PORT} (Independent of gateways :8787-8789)`)
+  console.log(`========================================================\n`)
+
+  const onShutdown = () => {
+    console.log('\nShutting down Claude-Zen Orchestrator...')
+    process.exit(0)
+  }
+  process.on('SIGINT', onShutdown)
+  process.on('SIGTERM', onShutdown)
+} catch (err) {
+  console.error('Failed to start Claude-Zen Orchestrator:', err)
+  process.exit(1)
+}

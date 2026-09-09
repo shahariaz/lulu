@@ -334,18 +334,69 @@ The transformation of Claude-Zen from a proxy gateway into an autonomous softwar
 
 ---
 
-## 3. High-Level Roadmap for Later Milestones
+## 3. Milestone 1.5: Modern UI & Architecture Migration (React + shadcn/ui + GSAP + PWA + DB Abstraction)
 
-### 3.1 Milestone 2: Workspace Hardening & Safe Previews
+**Goal:** Modernize the frontend cockpit and backend persistence architecture before proceeding to live dev server sandboxing. Migrate from the legacy embedded HTML string (`lib/ui.mjs`) to a modern Vite + React + TypeScript + Tailwind CSS + shadcn/ui + GSAP + PWA application, and implement a Storage Repository abstraction layer so that transitioning from SQLite to PostgreSQL in a future milestone requires zero state-machine or business-logic rewrites.
+
+### 3.1 Milestone 1.5 Task Dependency Graph
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ TSK-M1.5-01: Storage Repository Abstraction Layer        │
+│ (SQLite Repository + Future PostgreSQL Migration Parity) │
+└────────────────────────────┬─────────────────────────────┘
+                             │
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│ TSK-M1.5-02: Vite + React + TypeScript Frontend Scaffolding│
+│ (Tailwind CSS, shadcn/ui Radix Primitives & Dark Theme)  │
+└────────────────────────────┬─────────────────────────────┘
+                             │
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│ TSK-M1.5-03: Progressive Web App (PWA) Setup             │
+│ (vite-plugin-pwa, Manifest, Offline Shell, Dock Badging) │
+└────────────────────────────┬─────────────────────────────┘
+                             │
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│ TSK-M1.5-04: Motion & Animation Layer (GSAP & Framer)    │
+│ (Pipeline Progress Visualizer, Kanban Drag & Motion)     │
+└────────────────────────────┬─────────────────────────────┘
+                             │
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│ TSK-M1.5-05: Modern Interactive Delivery Cockpit Views   │
+│ (Repo Explorer, Chat Scoper, PRD Approver, 9-Stage DAG,  │
+│  Syntax-Highlighted Unified Diff Viewer, Action Bar)     │
+└────────────────────────────┬─────────────────────────────┘
+                             │
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│ TSK-M1.5-06: Static Asset Serving & Realtime SSE Bridge  │
+│ (Backend Port 8789 Static Mount + Streaming Event Relay) │
+└────────────────────────────┬─────────────────────────────┘
+                             │
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│ TSK-M1.5-07: Full Frontend-to-Backend Verification Suite │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. High-Level Roadmap for Later Milestones
+
+### 4.1 Milestone 2: Workspace Hardening & Safe Previews
 - **Isolated Local Previews:** Spawns local dev servers on isolated localhost ports with environment filtering.
 - **Interactive Failure Inspector:** Provides owner guidance hints and error log search for `Blocked` tasks.
 - **Automated Feature Merging & Branch Cleanup:** Squash/rebase automation with interactive git conflict resolution.
 
-### 3.2 Milestone 3: Advanced Scoping & Requirements Impact Analysis
+### 4.2 Milestone 3: Advanced Scoping & Requirements Impact Analysis
 - **Multi-Epic & Sprint Planning:** Hierarchical decomposition of complex requirements.
 - **Requirements Version Diffing:** Visual comparison of `v1.0.0` vs. `v1.1.0`.
 - **Automated Impact Analysis:** When a baseline changes, the Architect flags affected tasks for rework.
 
-### 3.3 Milestone 4: Parallel Worktrees & Multi-Agent Swarms
+### 4.3 Milestone 4: Parallel Worktrees & Multi-Agent Swarms
 - **Concurrent Worktree Execution:** Multiple worker agents writing in parallel to independent git worktrees.
 - **Conflict-Free Merge Coordinator:** Sequentially validates and merges completed worktree branches.

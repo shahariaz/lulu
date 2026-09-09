@@ -1,23 +1,23 @@
 # Architecture Review: Claude-Zen Self-Hosted AI Software Delivery Platform
 
-**Document Status:** Revision 2 — Validated Architecture Review & Contract Resolutions  
+**Document Status:** Revision 3 — Follow-Up Review and Remaining Gates  
 **Date:** 2026-09-09  
 **Reviewer Role:** Architecture Reviewer  
 **Review Target:** Phase 0 Planning Package (`docs/orchestrator/`) and Existing Gateway Codebase  
-**Status:** Architecture Contracts Validated & Settled  
+**Status:** Core Contracts Corrected; Foundation Ready; Owner Choices and Harness Evidence Pending  
 
 ---
 
 ## 1. Executive Summary & Review Verdict
 
-### Implementation Readiness Verdict: **PASS — READY FOR MILESTONE 1 IMPLEMENTATION**
+### Implementation Readiness Verdict: **PARTIAL PASS — FOUNDATION TASKS READY; WORKER/UI GATED**
 
 Following detailed validation against the existing codebase and runtime environment (Node.js v24.19.0, Git 2.55.0, Claude Code 2.1.231), the Phase 0 architecture contracts have been resolved across five core technical areas:
 
 1. **Non-Destructive Recovery:** Automatic forced worktree deletion is eliminated from all recovery, cancellation, and failure paths. The actual workspace—including tracked, untracked, and ignored files—is preserved on disk. Crash recovery relies on verified process ownership (PID, start time, command line) and handles lease inquiries without destructive side effects.
 2. **Realistic Execution Boundaries:** The execution boundary is honestly characterized as a **Cooperative Runtime Boundary (Defense-in-Depth)** for Milestone 1 workstation use, with explicit limitations documented. An advanced containerized/OS-isolated tier is specified as a distinct proposal.
 3. **Watertight Git Lifecycle:** One consistent lifecycle sequence is established: `Task base → candidate snapshot → automated verification → specialist review → owner acceptance → fast-forward integration into feature branch → Done`. Candidate commits stage intended changes immutably; tracked-file modifications during verification invalidate results; task integration is strictly fast-forward only (`git merge --ff-only`).
-4. **Preserved Product Stages & Normalized State Model:** Visible product stages (`Backlog`, `Ready`, `In Progress`, `Automated Checks`, `Code Review`, `QA`, `Done`, `Blocked`, `Cancelled`) are fully preserved in `tasks.status`. Orthogonal concerns (`task_runs.status`, `tasks.blocked_reason`, `review_records.verdict`, and `acceptance_records`) are separated into distinct schema fields.
+4. **Preserved Product Stages & Normalized State Model:** Visible product stages (`Backlog`, `Ready`, `In Progress`, `Automated Checks`, `Code Review`, `QA`, `Done`, `Blocked`, `Cancelled`) are fully preserved in `tasks.status`. Orthogonal concerns (`task_runs.status`, `tasks.waiting_reason`, `tasks.blocked_reason`, `review_records.verdict`, and `acceptance_records`) are separated into distinct schema fields.
 5. **Empirical Compatibility Spike:** Execution engine selection remains open. An offline experiment (`TSK-SPIKE-HARNESS-PARITY`) is scheduled before worker harness implementation to empirically evaluate CLI vs. in-process execution without making live provider requests.
 
 ---
@@ -61,7 +61,7 @@ Following detailed validation against the existing codebase and runtime environm
      - Accurately labeled as a cooperative host boundary, not an impenetrable sandbox.
      - Enforces Node.js file tool confinement via `fs.realpathSync` (`assertPathWithinWorktree`).
      - Scrubs child environment variables of provider API keys and parent process tokens.
-     - Enforces process group isolation (`setpgid: true`) and process tree timeouts (`[PROPOSAL: 120s]` with `SIGKILL`).
+     - Enforces POSIX process-group creation via Node.js `detached: true` and process tree timeouts (`[PROPOSAL: 120s]` with `SIGKILL`).
      - Documents explicit limitations: untrusted code running as the host user could inspect user-readable host files.
   2. **Advanced Containerized Execution (Separate Proposal):**
      - For untrusted third-party repositories, specifies an isolated container tier (rootless Podman, Docker, or Linux namespaces via `bubblewrap`; on macOS, `sandbox-exec` profiles).
@@ -145,12 +145,12 @@ Following detailed validation against the existing codebase and runtime environm
   2. **`task_runs.status` (Execution Attempt):**
      - `PENDING`, `RUNNING`, `VERIFYING`, `REVIEWING`, `COMPLETED`, `FAILED`, `ABORTED`.
   3. **`tasks.blocked_reason`:**
-     - `NULL`, `DEPENDENCIES_UNMET`, `REPAIR_LIMIT_EXCEEDED`, `SPECIALIST_UNAVAILABLE`, `BUDGET_EXCEEDED`, `RECONCILIATION_REQUIRED`, `INTEGRATION_CONFLICT`, `OWNER_CHANGES_REQUESTED`.
+     - `NULL`, `REPAIR_LIMIT_EXCEEDED`, `BUDGET_EXCEEDED`, `RECONCILIATION_REQUIRED`, `INTEGRATION_CONFLICT`. Transient conditions such as reviewer/model unavailability are stored in `tasks.waiting_reason`; owner change requests return the task to `In Progress` without a blocker.
   4. **`review_records.verdict`:**
      - `APPROVE`, `CHANGES_REQUESTED`.
   5. **`acceptance_records`:**
      - Immutable audit record storing `task_id`, `candidate_commit_sha`, `accepted_by`, `accepted_at`, `integrated_commit_sha`, `integrated_at`.
-  - **Specialist Review Rule:** If the specialist model is unavailable, the task remains in `Code Review` with `blocked_reason = 'SPECIALIST_UNAVAILABLE'`. It is never downgraded to a worker tier or bypassed without explicit owner override.
+  - **Specialist Review Rule:** If the specialist model is unavailable, the task remains in `Code Review` with `waiting_reason = 'SPECIALIST_UNAVAILABLE'`. Required review is never downgraded or bypassed.
 
 ---
 
@@ -166,7 +166,7 @@ Following detailed validation against the existing codebase and runtime environm
   2. **Audit Host Binary Options:** Inspect installed `claude` CLI version (2.1.231) flags: `--print`, `--output-format stream-json`, `--bare`, `--permission-mode dontAsk`, `--permission-prompts none`.
   3. **Complete Tool Cycle:** Exercise `tool_use` -> `tool execution` -> `tool_result` -> `final response` with real-time NDJSON stream parsing.
   4. **Verify Gateway Code with Mocked Upstream:** Route requests through actual local gateway adapters (`codex-gateway.mjs`, `antigravity-gateway.mjs`) with mocked provider responses to check header/schema forwarding.
-  5. **Decision Rule:** If PASS -> Approach A (Headless CLI) is viable for worker implementation; if FAIL -> Approach C (Custom In-Process Loop) is adopted.
+  5. **Decision Rule:** A passing result makes Approach A viable. A failure is classified as a test/configuration defect or a reproducible CLI/gateway incompatibility. Only reproducible incompatibility blocks Approach A; the remaining approaches are then compared and recorded in an ADR.
   6. **Documented Limitation:** A mock experiment validates CLI options, NDJSON parsing, and gateway handshakes, but cannot simulate live upstream model nuances (e.g. live Gemini thinking stream chunking).
 
 ---
@@ -202,9 +202,6 @@ Following detailed validation against the existing codebase and runtime environm
 
 ## 5. Implementation-Readiness Verdict
 
-**PASS — READY FOR IMPLEMENTATION**
+**PARTIAL PASS — READY FOR FOUNDATION IMPLEMENTATION**
 
-All contracts regarding non-destructive recovery, realistic execution boundaries, fast-forward git lifecycles, preserved product stages, and the empirical compatibility spike are settled and aligned across documentation.
-
-Milestone 1 implementation begins with:
-- **First Executable Task:** `TSK-M1-01` (Versioned Database Migrations & Non-Destructive Recovery Engine).
+The database, state-contract, and non-destructive workspace foundation may begin with `TSK-M1-01`. Worker-engine implementation remains gated by `TSK-M1-05` evidence and an ADR. UI implementation remains gated by the owner’s frontend choice. Numerical limits and the Milestone 1 execution tier remain explicit owner decisions.

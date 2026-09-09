@@ -1,6 +1,6 @@
 # Product Requirements Document (PRD): Claude-Zen Self-Hosted AI Software Delivery Platform
 
-**Document Status:** Revision 2 — Resolved Architectural Contracts  
+**Document Status:** Revision 3 — Corrected Contracts; Owner Sign-Off Pending  
 **Date:** 2026-09-09  
 **Product Name:** Claude-Zen Orchestrator  
 **Target Release:** v0.1.0 (Milestone 1: Core Vertical Slice)  
@@ -117,7 +117,7 @@ When all tasks in the milestone are `Done`, the owner initiates an explicit **Me
 - **`REQ-F-REPO-03`**: The system SHALL reject importing a repository if the working tree has uncommitted changes, unless the owner explicitly provides a dirty working tree override.
 - **`REQ-F-REPO-04`**: For each feature, the system SHALL create an isolated git feature branch (`zen/<feature-slug>`) rooted at the base commit SHA.
 - **`REQ-F-REPO-05`**: For each task execution, the system SHALL provision an isolated git worktree (`.zen-worktrees/<task-id>`) checked out to a task branch (`zen/task/<task-id>`), ensuring the user's primary working directory remains untouched during agent execution.
-- **`REQ-F-REPO-06`**: Worktrees SHALL be eligible for removal ONLY after the task is `Done` (cleanly integrated into the feature branch) or explicitly discarded by the owner. Worktrees associated with interrupted, failed, or cancelled tasks SHALL be preserved for owner inspection.
+- **`REQ-F-REPO-06`**: Worktrees SHALL be eligible for removal ONLY after the task is `Done` (cleanly integrated into the feature branch) or explicitly discarded by the owner. Worktrees associated with interrupted, failed, or cancelled tasks SHALL be preserved for owner inspection. Automatic cleanup SHALL use normal `git worktree remove` only after a clean-status and successful-integration preflight. Forced removal is permitted only through an explicit, separately confirmed owner discard action.
 
 ### 4.2 Specification & Baseline Management
 
@@ -134,6 +134,8 @@ When all tasks in the milestone are `Done`, the owner initiates an explicit **Me
 - **`REQ-F-TASK-01`**: The system SHALL automatically decompose an approved baseline into an ordered sequence of tasks with explicit IDs (`TSK-...`), scope paths (`scope_paths`), and dependency arrays (`blockedBy: [...]`).
 - **`REQ-F-TASK-02`**: The orchestrator SHALL schedule tasks deterministically. A task SHALL NOT transition to `Ready` until all dependencies in `blockedBy` have `status = 'Done'`.
 - **`REQ-F-TASK-03`**: The system SHALL enforce sequential execution (exactly one active writer task per project) in Milestone 1.
+- **`REQ-F-TASK-04`**: The system SHALL store transient waiting conditions separately from `tasks.status`. Model or reviewer unavailability SHALL preserve the visible product stage; `blocked_reason` SHALL be non-null only while `tasks.status = 'Blocked'`.
+- **`REQ-F-TASK-05`**: Each `task_runs` record SHALL identify its kind (`WORKER`, `VERIFICATION`, or `REVIEW`) and one attempt status (`PENDING`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELLED`, or `INTERRUPTED`).
 
 ### 4.4 Configurable Model Strategy
 
@@ -143,14 +145,14 @@ When all tasks in the milestone are `Done`, the owner initiates an explicit **Me
   - **Specialist Reviewer:** Configured Strong Model.
 - **`REQ-F-MOD-02`**: The system SHALL NOT hardcode any proprietary model identifier as mandatory.
 - **`REQ-F-MOD-03`**: If a configured model becomes unavailable (rate limit, quota exhaustion), the orchestrator SHALL attempt configured fallback accounts or models within that role tier.
-- **`REQ-F-MOD-04`**: If the Specialist Reviewer role has no available models, the task SHALL enter `Code Review` with blocker reason `SPECIALIST_UNAVAILABLE` and SHALL NOT proceed without review or explicit owner bypass.
+- **`REQ-F-MOD-04`**: If the Specialist Reviewer role has no available models, the task SHALL enter `Code Review` with `waiting_reason = 'SPECIALIST_UNAVAILABLE'` and SHALL NOT proceed until an allowed reviewer completes the required review.
 
-### 4.5 Execution Security & Sandboxing Boundaries
+### 4.5 Execution Boundary and Explicit Limitations
 
 - **`REQ-F-SEC-01`**: The system SHALL enforce working directory confinement. Node.js file tools SHALL resolve target paths and throw an immediate access error if any path traverses outside the assigned task worktree directory.
 - **`REQ-F-SEC-02`**: The system SHALL sanitize environment variables passed to child processes, explicitly stripping API keys, OAuth tokens (`ANTHROPIC_API_KEY`, Google refresh tokens, OpenAI tokens), and parent process credentials.
 - **`REQ-F-SEC-03`**: The system SHALL execute shell commands via an allowlisted command runner with process tree timeouts (`[PROPOSAL: 120s]`). High-risk administrative commands (`sudo`, `mkfs`, `rm -rf /`) SHALL be rejected.
-- **`REQ-F-SEC-04`**: The system SHALL document explicit limitations: on a single-user workstation without OS-level containerization, child processes spawned by build/test tools execute with host user privileges. An advanced containerized execution tier SHALL be specified as a separate proposal.
+- **`REQ-F-SEC-04`**: The system SHALL document explicit limitations: on a single-user workstation without OS-level isolation, child processes spawned by build/test tools execute with host-user privileges. Any containerized tier SHALL define a workable Git-storage model and an enforced network path; `--network none` cannot reach host gateways.
 
 ### 4.6 Candidate Snapshotting, Verification & Bounded Repair
 

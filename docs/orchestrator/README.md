@@ -1,6 +1,6 @@
 # Claude-Zen Orchestrator: Phase 0 Planning Package
 
-**Document Status:** Revision 2 — Settled Architecture Contracts & Implementation Baseline  
+**Document Status:** Revision 3 — Foundation Baseline; Owner Choices and Harness Spike Pending  
 **Date:** 2026-09-09  
 **Target System:** Claude-Zen Self-Hosted AI Software Delivery Application  
 **Operating Context:** Self-hosted workstation or personal server (macOS / Linux)  
@@ -11,13 +11,13 @@
 
 Claude-Zen is evolving from a multi-provider proxy and account-pooling gateway for the Claude Code CLI into an autonomous, self-hosted AI software delivery application with a polished browser UI.
 
-This Phase 0 planning package establishes the product requirements, technical architecture, delivery roadmap, and architecture review. Revision 2 resolves and settles all architecture contracts:
+This Phase 0 planning package establishes the product requirements, technical architecture, delivery roadmap, and architecture review. Revision 3 corrects the remaining safety and lifecycle contradictions. Foundation work may begin after owner sign-off; worker-engine and UI implementation remain gated by the documented choices and compatibility evidence.
 
 1. **Non-Destructive Recovery:** Automatic forced worktree deletion is eliminated from all recovery, cancellation, and failure paths. The actual workspace—including tracked, untracked, and ignored files—is preserved on disk. Crash recovery relies on verified process ownership (PID, start time, command line) and handles lease inquiries without destructive side effects.
 2. **Realistic Execution Boundaries:** The execution boundary is honestly characterized as a **Cooperative Runtime Boundary (Defense-in-Depth)** for Milestone 1 workstation use, with explicit limitations documented. An advanced containerized/OS-isolated tier is specified as a distinct proposal.
 3. **Watertight Git Lifecycle:** One consistent lifecycle sequence is established: `Task base → candidate snapshot → automated verification → specialist review → owner acceptance → fast-forward integration into feature branch → Done`. Candidate commits stage intended changes immutably; tracked-file modifications during verification invalidate results; task integration is strictly fast-forward only (`git merge --ff-only`).
-4. **Preserved Product Stages & Normalized State Model:** Visible product stages (`Backlog`, `Ready`, `In Progress`, `Automated Checks`, `Code Review`, `QA`, `Done`, `Blocked`, `Cancelled`) are fully preserved in `tasks.status`. Orthogonal concerns (`task_runs.status`, `tasks.blocked_reason`, `review_records.verdict`, and `acceptance_records`) are separated into distinct schema fields.
-5. **Empirical Compatibility Spike:** Execution engine selection remains open. An offline experiment (`TSK-SPIKE-HARNESS-PARITY`) is scheduled before worker harness implementation to empirically evaluate CLI vs. in-process execution without making live provider requests.
+4. **Preserved Product Stages & Normalized State Model:** Visible product stages (`Backlog`, `Ready`, `In Progress`, `Automated Checks`, `Code Review`, `QA`, `Done`, `Blocked`, `Cancelled`) are fully preserved in `tasks.status`. Orthogonal concerns (`task_runs.kind`, `task_runs.status`, `tasks.waiting_reason`, `tasks.blocked_reason`, `review_records.verdict`, and `acceptance_records`) are separated into distinct schema fields.
+5. **Empirical Compatibility Spike:** Execution engine selection remains open. An offline experiment (`TSK-SPIKE-HARNESS-PARITY`) is scheduled before worker harness implementation. It classifies evidence and establishes whether an engine is viable; a failure does not automatically select another engine.
 
 ---
 
@@ -76,7 +76,13 @@ Review the planning package in the following sequence:
                             ▼
 ┌────────────────────────────────────────────────────────┐
 │ 8. docs/orchestrator/revision-02-report.md             │
-│    Finding-by-finding traceability report (DOC-REV-02) │
+│    Superseded historical Revision 2 report             │
+└───────────────────────────┬────────────────────────────┘
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│ 9. docs/orchestrator/revision-03-report.md             │
+│    Final corrections and remaining implementation gates│
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -93,7 +99,8 @@ Review the planning package in the following sequence:
 | [`architecture-review.md`](architecture-review.md) | Formal architecture review covering the 5 key focus areas, severity-ranked findings, exact document corrections, and the bounded compatibility spike specification. |
 | [`delivery-plan.md`](delivery-plan.md) | Phased implementation plan across 5 milestones; details 10 dependency-ordered engineering tasks for Milestone 1 (`TSK-M1-01` to `TSK-M1-10`), incorporating worktree provisioning, execution containment, compatibility spike, and verification pipelines. |
 | [`decisions-and-open-questions.md`](decisions-and-open-questions.md) | Catalog of confirmed decisions (`DEC-01` to `DEC-11`), assumptions, and recommendations awaiting review; highlights the specific blocking decisions requiring owner sign-off prior to coding. |
-| [`revision-02-report.md`](revision-02-report.md) | Detailed traceability report for DOC-REV-02: Finding → File/Section → Resolution mapping, remaining blockers, and checks actually performed. |
+| [`revision-02-report.md`](revision-02-report.md) | Superseded historical traceability report for DOC-REV-02. |
+| [`revision-03-report.md`](revision-03-report.md) | Follow-up corrections, remaining owner decisions, and implementation gates. |
 
 ---
 
@@ -121,4 +128,4 @@ Milestone 1 delivers a complete, secure vertical slice executed sequentially:
 During this planning phase:
 - **No application code was modified.** All existing gateways (`zen-proxy.mjs`, `codex-gateway.mjs`, `antigravity-gateway.mjs`), libraries, shell scripts, and configuration files remain completely unchanged.
 - **Zero network requests, provider logins, or credential reads were performed.**
-- **All documentation is concrete, internally consistent, and free of secrets.**
+- **The Revision 3 documents identify remaining owner choices explicitly and contain no known application-code changes or secrets.**

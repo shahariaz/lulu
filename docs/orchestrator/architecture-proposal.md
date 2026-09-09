@@ -1,6 +1,6 @@
 # Technical Architecture Proposal: Claude-Zen Self-Hosted AI Software Delivery Platform
 
-**Document Status:** Revision 2 — Resolved Architectural Contracts  
+**Document Status:** Revision 3 — Corrected Contracts; Gated Implementation Baseline  
 **Date:** 2026-09-09  
 **Target Release:** v0.1.0 (Milestone 1: Core Vertical Slice)  
 
@@ -44,6 +44,7 @@ A core technical decision is how the orchestrator drives agent execution. Rather
   claude -p "<prompt>" \
     --bare \
     --output-format stream-json \
+    --verbose \
     --include-partial-messages \
     --tools "Read,Edit,Write,Bash,Glob,Grep" \
     --permission-mode dontAsk \
@@ -94,19 +95,21 @@ Rather than deciding based on assumptions, Milestone 1 schedules a preliminary o
 
 1. **Step 1: CLI Version & Invocability Audit:**
    Run read-only verification on the installed host binary:
-   - `claude --version` (verified: `2.1.231`).
-   - Validate that flags `--print`, `--output-format stream-json`, `--bare`, `--permission-mode dontAsk`, `--permission-prompts none` are supported.
+   - Record `claude --version` for the environment under test (the Revision 2 workstation reported `2.1.231`; do not assume this globally).
+   - Validate that flags `--print`, `--output-format stream-json`, `--verbose`, `--include-partial-messages`, `--bare`, `--permission-mode dontAsk`, and any permission flags used by the test are supported by that installed version.
 2. **Step 2: Mock Gateway Smoke Test (Zero Live Calls):**
    - Spin up an offline mock HTTP server on `127.0.0.1:9876` replaying Anthropic SSE fixtures (from `test/anthropic-sse.test.mjs`).
-   - Spawn `claude -p "smoke test" --bare --output-format stream-json --permission-mode dontAsk` pointing `ANTHROPIC_BASE_URL="http://127.0.0.1:9876"`.
+   - Spawn `claude -p "smoke test" --bare --output-format stream-json --verbose --include-partial-messages --permission-mode dontAsk` pointing `ANTHROPIC_BASE_URL="http://127.0.0.1:9876"`.
    - Verify that `claude` connects, parses SSE, emits valid NDJSON (`system/init`, `stream_event`, `result`), and exits `0`.
 3. **Step 3: Gateway Integration Test with Mock Upstream:**
    - Spin up local gateway (`codex-gateway.mjs` or `antigravity-gateway.mjs`) with mocked upstream HTTP responses.
    - Execute a complete `tool_use` -> `tool execution` -> `tool_result` -> `final turn` cycle.
    - Verify structured streaming, permission denial handling, cancellation (`SIGINT` / `SIGTERM`), timeouts, and route pinning.
-4. **Pass/Fail Decision Criteria:**
-   - **PASS Criteria:** Claude Code completes the full mock tool cycle with NDJSON streaming and clean exit `0`. -> *Select Approach A for Worker Harness.*
-   - **FAIL Criteria:** Claude Code crashes on headers, hangs on stdin/stdout, or refuses non-standard base URLs. -> *Select Approach C (Custom Loop) for Worker Harness.*
+4. **Evidence Classification and Decision Criteria:**
+   - **VIABLE:** Claude Code completes the full mock tool cycle with NDJSON streaming and clean exit `0`; Approach A may proceed to implementation.
+   - **TEST/CONFIGURATION DEFECT:** Unsupported invocation flags, invalid fixtures, mock-protocol mistakes, or test harness failures must be corrected and rerun; they do not decide the engine.
+   - **CLI/GATEWAY INCOMPATIBILITY:** A reproducible failure attributable to the installed CLI or actual gateway protocol blocks Approach A. The team then evaluates Approach B and Approach C against the same requirements before recording an architecture decision.
+   - Record evidence and rationale in a decision record; never select Approach C automatically from an undiagnosed failure.
 5. **Limitations of Mocked Spike:**
    - Mocked tests verify CLI flag compatibility, stream parsing, and gateway handshake.
    - Mocked tests **cannot** establish live-provider nuances (e.g. Gemini 3.8 thinking block handling, real upstream quota resets, or live token refresh under network latency).
@@ -190,7 +193,7 @@ Claude-Zen strictly distinguishes **Git working-copy isolation** from **executio
 5. **Preservation on Interruption:** If a task is interrupted, cancelled, or fails, the worktree is **never force-deleted**. It remains preserved on disk until explicitly reconciled or discarded by the owner.
 6. **Teardown & Cleanup:** When the task is successfully integrated via fast-forward merge into the feature branch:
    ```bash
-   git worktree remove --force .zen-worktrees/<task-id>
+   git worktree remove .zen-worktrees/<task-id>
    git worktree prune
    ```
 
@@ -200,16 +203,16 @@ Command allowlists, `cwd`, and environment variables alone **do not** confine ar
 
 #### Proposal A: Containerized / OS-Isolated Execution (Advanced Tier)
 - **Mechanism:** Worker and test commands execute inside an isolated container (Docker, rootless Podman, or Linux namespaces via `bubblewrap`). On macOS, executes under an explicit `sandbox-exec` profile.
-- **Filesystem:** Host filesystem is mounted read-only, except for `.zen-worktrees/<task-id>` which is mounted read-write. Main `.git` directory is completely unmounted; git metadata is accessed via a read-only gitdir stub.
-- **Credentials:** Zero host credentials mounted into container.
-- **Network:** Gateway connectivity to `127.0.0.1:8787-8789` permitted via host networking; external WAN egress blocked (`--network none` or packet filter), requiring dependencies to be pre-installed or mirrored.
+- **Filesystem/Git:** Use a disposable full clone or exported candidate tree inside the isolated environment. Mount only that workspace read-write. Do not expose the owner checkout or its shared Git common directory. If linked worktrees are evaluated later, explicitly design and test the required Git common-directory access rather than inventing a read-only gitdir stub.
+- **Credentials:** Mount no host credentials. Provide only narrowly scoped, short-lived runtime material when an approved workflow requires it.
+- **Network:** `--network none` provides no route to host gateways. If the agent process must reach a gateway, use a dedicated bridge/proxy and enforce an allowlist to only that gateway; do not use host networking as an isolation control. Test-only containers that need no gateway may use `--network none`. Dependencies must be pre-installed, vendored, or retrieved in a separate owner-approved preparation phase.
 
 #### Proposal B: Cooperative Trusted-Local Execution (Milestone 1 Default)
 - **Context & Premise:** Recommended for Milestone 1 on single-user workstations where Docker setup overhead is avoided. The owner explicitly trusts local project scripts, but requires strong defense-in-depth against accidental damage.
 - **Concrete Protections:**
   1. **Node.js Tool Path Confinement:** `assertPathWithinWorktree` resolves realpaths and blocks file tool traversal outside `.zen-worktrees/<task-id>`.
   2. **Credential Stripping:** `process.env` passed to spawned child processes is sanitized, stripping all API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`), cloud tokens, and parent session secrets.
-  3. **Process Groups & Resource Limits:** Child processes are spawned in new process groups (`setpgid: true`). Every command has a hard timeout (`[PROPOSAL: 120s]`). On expiration, the entire process tree is terminated (`SIGTERM` -> 5s -> `SIGKILL`).
+  3. **Process Groups & Resource Limits:** On POSIX, child processes are spawned with Node.js `detached: true` so they lead a new process group/session; the implementation must be verified on each supported OS. Every command has a hard timeout (`[PROPOSAL: 120s]`). On expiration, the entire process tree is terminated (`SIGTERM` -> 5s -> `SIGKILL`).
   4. **Command Allowlist:** Only standard build/test runners (`npm`, `pytest`, `cargo`, `go`) and git status tools are permitted. Shell interpreters (`sh -c`, `eval`, `sudo`) are blocked.
   5. **Network Policy:** Test runners are encouraged to run offline (`npm test --offline`) where supported. Gateways listen on `127.0.0.1:8787-8789` and are reached directly by the orchestrator, not child test scripts.
   6. **Explicit Limitations:** On host execution, malicious or rogue test scripts could theoretically read host files readable by the user. Users requiring untrusted code execution must run Claude-Zen in a VM or dedicate a non-root user.
@@ -231,21 +234,23 @@ To eliminate state conflation, the orchestrator architecture decouples four dist
 │                         │                               │ Code Review, QA, Done,       │
 │                         │                               │ Blocked, Cancelled           │
 ├─────────────────────────┼───────────────────────────────┼──────────────────────────────┤
-│ 2. Run Status           │ task_runs.status              │ PENDING, RUNNING, VERIFYING, │
-│    (Execution Attempt)  │                               │ REVIEWING, COMPLETED,        │
-│                         │                               │ FAILED, ABORTED              │
+│ 2. Run Kind             │ task_runs.kind                │ WORKER, VERIFICATION, REVIEW │
 ├─────────────────────────┼───────────────────────────────┼──────────────────────────────┤
-│ 3. Blocker Reason       │ tasks.blocked_reason          │ NULL, DEPENDENCIES_UNMET,    │
-│    (Waiting Cause)      │                               │ REPAIR_LIMIT_EXCEEDED,       │
-│                         │                               │ SPECIALIST_UNAVAILABLE,      │
-│                         │                               │ BUDGET_EXCEEDED,             │
+│ 3. Run Status           │ task_runs.status              │ PENDING, RUNNING, SUCCEEDED, │
+│    (One Attempt)        │                               │ FAILED, CANCELLED, INTERRUPTED│
+├─────────────────────────┼───────────────────────────────┼──────────────────────────────┤
+│ 4. Waiting Reason       │ tasks.waiting_reason          │ NULL, MODEL_UNAVAILABLE,     │
+│    (Stage is retained)  │                               │ SPECIALIST_UNAVAILABLE,      │
+│                         │                               │ AWAITING_OWNER_QA            │
+├─────────────────────────┼───────────────────────────────┼──────────────────────────────┤
+│ 5. Blocker Reason       │ tasks.blocked_reason          │ NULL, REPAIR_LIMIT_EXCEEDED, │
+│    (Only when Blocked)  │                               │ BUDGET_EXCEEDED,             │
 │                         │                               │ RECONCILIATION_REQUIRED,     │
-│                         │                               │ INTEGRATION_CONFLICT,        │
-│                         │                               │ OWNER_CHANGES_REQUESTED      │
+│                         │                               │ INTEGRATION_CONFLICT         │
 ├─────────────────────────┼───────────────────────────────┼──────────────────────────────┤
-│ 4. Review Verdict       │ review_records.verdict        │ APPROVE, CHANGES_REQUESTED   │
+│ 6. Review Verdict       │ review_records.verdict        │ APPROVE, CHANGES_REQUESTED   │
 ├─────────────────────────┼───────────────────────────────┼──────────────────────────────┤
-│ 5. Acceptance Record    │ acceptance_records            │ candidate_commit_sha,        │
+│ 7. Acceptance Record    │ acceptance_records            │ candidate_commit_sha,        │
 │                         │                               │ accepted_by, accepted_at,    │
 │                         │                               │ integrated_commit_sha        │
 └─────────────────────────┴───────────────────────────────┴──────────────────────────────┘
@@ -304,12 +309,12 @@ To eliminate state conflation, the orchestrator architecture decouples four dist
 | **`Backlog`** | **`Ready`** | DAG Scheduler | Every task ID in `blockedBy` has `tasks.status = 'Done'`. |
 | **`Ready`** | **`In Progress`** | Task Dispatcher | Single active writer rule holds. Task worktree `.zen-worktrees/<task-id>` successfully provisioned. `task_runs` record created with status `RUNNING`. |
 | **`In Progress`** | **`Automated Checks`** | Worker Agent | Worker calls `request_verification`. Orchestrator stages `scope_paths` and commits `candidate_commit_sha`. |
-| **`Automated Checks`** | **`In Progress` (Repair)** | Verifier Engine | Tests exit != 0 AND `repair_attempts < max_repairs`. Failure logs injected into worker. `tasks.blocked_reason = 'REPAIR_ATTEMPT'`. |
+| **`Automated Checks`** | **`In Progress` (Repair)** | Verifier Engine | Tests exit != 0 AND `repair_attempts < max_repairs`. Failure logs are injected into a new worker attempt; `blocked_reason` remains `NULL`. |
 | **`Automated Checks`** | **`Blocked`** | Verifier Engine | Tests exit != 0 AND `repair_attempts >= max_repairs`. `tasks.blocked_reason = 'REPAIR_LIMIT_EXCEEDED'`. |
 | **`Automated Checks`** | **`Code Review`** | Verifier Engine | Tests exit 0 AND zero tracked files modified during test execution. `verification_digest` recorded. |
 | **`Code Review`** | **`In Progress`** | Specialist Reviewer | Specialist outputs verdict `CHANGES_REQUESTED`. Findings attached to task run. |
 | **`Code Review`** | **`QA`** | Specialist Reviewer | Specialist outputs verdict `APPROVE`. `review_records` created. |
-| **`Code Review`** | **`Blocked`** | Orchestrator | Specialist reviewer model unavailable across all configured accounts. `tasks.blocked_reason = 'SPECIALIST_UNAVAILABLE'`. (Never bypassed). |
+| **`Code Review`** | **`Code Review`** | Orchestrator | Required reviewer unavailable. Preserve the stage and set `tasks.waiting_reason = 'SPECIALIST_UNAVAILABLE'`; resume review when an allowed reviewer becomes available. |
 | **`QA`** | **`Done`** | Human Owner + Git | Owner clicks **Accept** in UI. Orchestrator runs `git merge --ff-only zen/task/<task-id>` into `zen/<feature-slug>`. On success: task status -> `Done`, worktree pruned. |
 | **`QA`** | **`Blocked`** | Git Integration | Fast-forward merge fails (feature branch shifted). `tasks.blocked_reason = 'INTEGRATION_CONFLICT'`. Worktree preserved. |
 | **`QA`** | **`In Progress`** | Human Owner | Owner clicks **Request Changes** with correction notes. |
@@ -390,7 +395,7 @@ Upon orchestrator boot after a crash or power failure:
 2. **Process Liveness:** Check recorded PIDs. If any process survived the restart, terminate it gracefully.
 3. **Reconcile Git Locks:** Inspect worktree directories for `index.lock` or worktree locks. Clear locks only after verifying that no process holds the file handle.
 4. **Preserve Workspace:** Inspect git status (`git status --porcelain`) in `.zen-worktrees/<task-id>`.
-   - If dirty: **DO NOT DELETE**. Stash changes or create a checkpoint commit on `refs/zen/recovery/<task-id>-<timestamp>`.
+   - If dirty or if untracked/ignored files exist: **DO NOT DELETE, STASH, RESET, OR COMMIT AUTOMATICALLY**. Preserve the worktree directory byte-for-byte until the owner selects a recovery action.
    - Transition task to `Blocked` with reason `RECONCILIATION_REQUIRED`.
    - Display a notification in the UI allowing the owner to view the preserved diff and decide whether to resume, rebase, or discard.
 5. **Clean Worktree Pruning:** Pruning (`git worktree remove`) is executed **only** on worktrees whose tasks have `status = 'Done'` and whose commits are verified merged into the feature branch.
@@ -403,10 +408,10 @@ All model allocations are dynamic and configurable in SQLite / settings:
 
 | Role | Default Config | Supported Options | Fallback / Exhaustion Policy |
 | :--- | :--- | :--- | :--- |
-| **Planner / Architect** | Strong Model (Claude 3.7 Sonnet Thinking via Antigravity OR GPT-5.6-sol via Codex) | Any provider model supporting multi-turn chat | Attempt configured fallback strong model in pool. If exhausted: task pauses with `BLOCKED` (`SPECIALIST_UNAVAILABLE`). |
+| **Planner / Architect** | Strong Model (Claude 3.7 Sonnet Thinking via Antigravity OR GPT-5.6-sol via Codex) | Any provider model supporting multi-turn chat | Attempt configured fallback strong model in pool. If exhausted: preserve the current product stage and set `waiting_reason = 'MODEL_UNAVAILABLE'`. |
 | **Worker / Implementer** | Fast Bounded Worker (Gemini 3.8 Flash via Antigravity) | Configured Worker Model (Codex, Antigravity, OpenCode Zen) | Rotate across accounts in pool. Fallback to alternative fast models. |
 | **Automated Verifier** | Pure Deterministic Code (No LLM) | Command string, timeout, env | N/A (runs local test runners). |
-| **Specialist Reviewer** | Strong Model (Claude 3.7 Sonnet Thinking via Antigravity OR GPT-5.6-sol via Codex) | Any high-reasoning model supporting diff analysis | **STRICT RULE:** Must remain in `Code Review` with blocker reason `SPECIALIST_UNAVAILABLE`. Never downgrade review to worker tier or bypass. |
+| **Specialist Reviewer** | Strong Model (Claude 3.7 Sonnet Thinking via Antigravity OR GPT-5.6-sol via Codex) | Any high-reasoning model supporting diff analysis | **STRICT RULE:** Must remain in `Code Review` with `waiting_reason = 'SPECIALIST_UNAVAILABLE'`. Never downgrade review to worker tier or bypass. |
 
 ---
 
@@ -466,8 +471,8 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 1. **`projects`**: `id`, `name`, `repo_path`, `active_branch`, `created_at`.
 2. **`requirements_baselines`**: `id`, `project_id`, `version`, `spec_markdown`, `status` (`DRAFT`, `APPROVED`, `SUPERSEDED`), `approved_at`, `approved_by`.
 3. **`milestones`**: `id`, `baseline_id`, `title`, `order_index`.
-4. **`tasks`**: `id`, `milestone_id`, `title`, `description`, `scope_paths_json`, `status` (`Backlog`, `Ready`, `In Progress`, `Automated Checks`, `Code Review`, `QA`, `Done`, `Blocked`, `Cancelled`), `blocked_by_json`, `blocked_reason`, `worktree_path`, `repair_attempts`, `max_repairs` (default 3), `created_at`, `updated_at`.
-5. **`task_runs`**: `id`, `task_id`, `role`, `model`, `provider`, `account_email`, `input_tokens`, `output_tokens`, `is_estimated`, `base_commit_sha`, `candidate_commit_sha`, `diff_digest`, `started_at`, `completed_at`, `status` (`PENDING`, `RUNNING`, `VERIFYING`, `REVIEWING`, `COMPLETED`, `FAILED`, `ABORTED`).
+4. **`tasks`**: `id`, `milestone_id`, `title`, `description`, `scope_paths_json`, `status` (`Backlog`, `Ready`, `In Progress`, `Automated Checks`, `Code Review`, `QA`, `Done`, `Blocked`, `Cancelled`), `blocked_by_json`, `waiting_reason`, `blocked_reason`, `worktree_path`, `repair_attempts`, `max_repairs` (default 3), `created_at`, `updated_at`.
+5. **`task_runs`**: `id`, `task_id`, `kind` (`WORKER`, `VERIFICATION`, `REVIEW`), `role`, `model`, `provider`, `account_email`, `input_tokens`, `output_tokens`, `is_estimated`, `base_commit_sha`, `candidate_commit_sha`, `diff_digest`, `started_at`, `completed_at`, `status` (`PENDING`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELLED`, `INTERRUPTED`).
 6. **`verification_results`**: `id`, `task_run_id`, `command`, `exit_code`, `output_log`, `verification_digest`, `environment_info_json`, `passed`, `executed_at`.
 7. **`review_records`**: `id`, `task_run_id`, `candidate_commit_sha`, `verdict` (`APPROVE`, `CHANGES_REQUESTED`), `summary`, `findings_json`, `reviewed_at`.
 8. **`acceptance_records`**: `id`, `task_id`, `candidate_commit_sha`, `accepted_by`, `accepted_at`, `integrated_commit_sha`, `integrated_at`.

@@ -1,6 +1,6 @@
 # Delivery Plan: Claude-Zen Self-Hosted AI Software Delivery Platform
 
-**Document Status:** Revision 2 — Resolved Architectural Contracts & Execution Sequencing  
+**Document Status:** Revision 3 — Corrected Contracts & Gated Execution Sequencing  
 **Date:** 2026-09-09  
 **Target Release:** v0.1.0 (Milestone 1: Core Vertical Slice)  
 
@@ -80,7 +80,7 @@ The transformation of Claude-Zen from a proxy gateway into an autonomous softwar
                              │
                              ▼
 ┌──────────────────────────────────────────────────────────┐
-│ TSK-M1-06: Sandboxed Worker Execution Engine             │
+│ TSK-M1-06: Bounded Worker Execution Engine             │
 │ (Confinement & Process Limits Governed by Spike Outcome) │
 └────────────────────────────┬─────────────────────────────┘
                              │
@@ -122,7 +122,7 @@ The transformation of Claude-Zen from a proxy gateway into an autonomous softwar
   4. Implement **non-destructive boot-time recovery**:
      - Verify process identity (PID, start time, command line) before sending OS signals.
      - Heartbeat expiry alone **never** triggers worktree deletion.
-     - Reconcile transient runs: inspect dirty worktrees, preserve changes to `refs/zen/recovery/<task-id>-<ts>`, set task status to `Blocked` with reason `RECONCILIATION_REQUIRED`.
+     - Reconcile transient runs: inspect dirty worktrees, preserve the worktree without automatic stash, reset, commit, or deletion; set task status to `Blocked` with reason `RECONCILIATION_REQUIRED`.
      - Reconcile stale `index.lock` files safely.
 - **Deliverables:**
   - `lib/orchestrator/db/migration-runner.mjs`: Migration runner.
@@ -183,7 +183,7 @@ The transformation of Claude-Zen from a proxy gateway into an autonomous softwar
 - **Scope:**
   1. Prompt the Architect model to parse the approved baseline into a JSON array of bounded tasks (`TSK-...`), input/output file scopes (`scope_paths`), and dependencies (`blockedBy`).
   2. Implement the normalized state machine managing visible product stages (`Backlog`, `Ready`, `In Progress`, `Automated Checks`, `Code Review`, `QA`, `Done`, `Blocked`, `Cancelled`).
-  3. Manage decoupled execution run records (`task_runs`), blocker reasons (`tasks.blocked_reason`), and review verdicts.
+  3. Manage decoupled run kinds/statuses (`task_runs.kind`, `task_runs.status`), transient waiting reasons (`tasks.waiting_reason`), blocker reasons used only with `Blocked` (`tasks.blocked_reason`), and review verdicts.
   4. Enforce sequential execution: exactly one task may be `In Progress` per project.
   5. Enforce dependency unblocking: downstream tasks in `Backlog` transition to `Ready` only when all prerequisite tasks have `status = 'Done'`.
 - **Deliverables:**
@@ -202,25 +202,27 @@ The transformation of Claude-Zen from a proxy gateway into an autonomous softwar
 - **Owner Role:** Core Systems Engineer
 - **Scope:**
   1. Implement an automated, offline test spike to empirically settle the worker harness choice without making live provider requests.
-  2. Audit installed `claude` CLI binary (version 2.1.231) options.
+  2. Record and audit the installed `claude` CLI version and supported options; do not assume the Revision 2 workstation version applies everywhere.
   3. Spin up an offline mock Anthropic `/v1/messages` server replaying SSE fixtures from `test/anthropic-sse.test.mjs`.
-  4. Test spawning `claude -p "smoke test" --bare --output-format stream-json --permission-mode dontAsk` against the mock server.
+  4. Test spawning `claude -p "smoke test" --bare --output-format stream-json --verbose --include-partial-messages --permission-mode dontAsk` against the mock server.
   5. Test full `tool_use` -> `tool execution` -> `tool_result` -> `final response` cycle with NDJSON streaming.
-  6. Document pass/fail determination:
-     - If PASS: Select Approach A (Headless CLI) for worker engine.
-     - If FAIL: Select Approach C (Custom In-Process Loop) for worker engine.
+  6. Classify and record the result:
+     - `VIABLE`: the CLI/gateway path satisfies the experiment and may be selected.
+     - `TEST_OR_CONFIGURATION_DEFECT`: fix the fixture, invocation, or harness and rerun.
+     - `CLI_GATEWAY_INCOMPATIBLE`: reproducible incompatibility blocks the CLI path; compare the Agent SDK and custom loop, then record an ADR.
+     - Never select a fallback engine automatically from an undiagnosed failure.
 - **Deliverables:**
   - `test/harness-compat-spike.test.mjs`: Automated offline experiment script.
   - Compatibility report outputting tested headers, streaming events, and final verdict.
 - **Dependencies:** `TSK-M1-01` through `TSK-M1-04` (Executes before worker engine implementation)
 - **Acceptance Criteria:**
   - Runs 100% offline with zero external API calls or real credentials.
-  - Decisively outputs a PASS or FAIL verdict governing `TSK-M1-06`.
+  - Outputs evidence, a classified result, and an ADR when the evidence is sufficient to select the engine for `TSK-M1-06`.
 - **Verification:** `node --test test/harness-compat-spike.test.mjs`
 
 ---
 
-#### `TSK-M1-06`: Sandboxed Worker Execution Engine
+#### `TSK-M1-06`: Bounded Worker Execution Engine
 - **Linked Requirements:** `REQ-F-EXEC-01`, `REQ-F-EXEC-02`, `REQ-F-EXEC-03`, `REQ-F-SEC-01`, `REQ-F-SEC-02`, `REQ-F-SEC-03`, `REQ-F-SEC-04`, `REQ-F-MOD-01`
 - **Owner Role:** Core Systems / Security Engineer
 - **Scope:**
@@ -230,7 +232,7 @@ The transformation of Claude-Zen from a proxy gateway into an autonomous softwar
   2. Implement concrete execution boundary protections:
      - Working directory confinement: `assertPathWithinWorktree` blocks access outside `.zen-worktrees/<task-id>`.
      - Environment variable sanitization: strip provider API keys and parent process tokens.
-     - Process tree timeouts (`[PROPOSAL: 120s]`) killing process group via `setpgid`.
+     - Process tree timeouts (`[PROPOSAL: 120s]`) using a verified POSIX process group created with Node.js `detached: true`; terminate gracefully before forced termination.
      - Command allowlist: build/test binaries (`npm`, `pytest`, `cargo`, `go`) only; shell interpreters blocked.
   3. Connect worker to the Configured Worker model (e.g. Gemini 3.8 Flash via Antigravity).
   4. When implementation completes, stage intended files in `scope_paths` and commit `candidate_commit_sha`.
@@ -277,7 +279,7 @@ The transformation of Claude-Zen from a proxy gateway into an autonomous softwar
   2. Bind review strictly to the immutable review artifact: `base_commit_sha`, `candidate_commit_sha`, `diff_digest`, and `verification_digest`.
   3. Enforce review invalidation: if any worktree file is altered post-verification, invalidate prior verification and review, resetting task to `Automated Checks`.
   4. Parse structured review findings: verdict (`APPROVE` or `CHANGES_REQUESTED`), summary, categorized issues.
-  5. Enforce specialist availability rule: if specialist model is unavailable, hold task in `Code Review` with blocker reason `SPECIALIST_UNAVAILABLE` without bypass.
+  5. Enforce specialist availability rule: if specialist model is unavailable, hold the task in `Code Review` with `waiting_reason = 'SPECIALIST_UNAVAILABLE'` until an allowed reviewer is available.
 - **Deliverables:**
   - `lib/orchestrator/review-engine.mjs`: Review harness, diff generator, digest verifier, and verdict parser.
   - Unit tests verifying structured outputs, invalidation on file alteration, and quota pending holding.

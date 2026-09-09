@@ -1,210 +1,210 @@
 # Architecture Review: Claude-Zen Self-Hosted AI Software Delivery Platform
 
-**Review Date:** 2026-09-09  
+**Document Status:** Revision 2 — Validated Architecture Review & Contract Resolutions  
+**Date:** 2026-09-09  
 **Reviewer Role:** Architecture Reviewer  
 **Review Target:** Phase 0 Planning Package (`docs/orchestrator/`) and Existing Gateway Codebase  
-**Status:** Evaluation Complete — Actionable Findings & Corrections Defined  
+**Status:** Architecture Contracts Validated & Settled  
 
 ---
 
 ## 1. Executive Summary & Review Verdict
 
-### Implementation Readiness Verdict: **CONDITIONAL PASS — BLOCKED ON 3 SPECIFICATION AMENDMENTS**
+### Implementation Readiness Verdict: **PASS — READY FOR MILESTONE 1 IMPLEMENTATION**
 
-The Phase 0 planning package establishes a strong, disciplined foundation for evolving Claude-Zen from a proxy gateway into an autonomous delivery platform. The separation of ordinary orchestration code from probabilistic agent models, the introduction of git worktree isolation in Milestone 1, and the decoupling of task acceptance from git committing are well-conceived.
+Following detailed validation against the existing codebase and runtime environment (Node.js v24.19.0, Git 2.55.0, Claude Code 2.1.231), the Phase 0 architecture contracts have been resolved across five core technical areas:
 
-However, application code implementation **must not begin** until three critical architectural flaws are corrected in the documentation:
-
-1. **Destructive Recovery:** The proposed crash recovery logic automatically deletes unmapped worktrees with `git worktree remove --force`, which will destroy uncommitted developer and agent work after an ungraceful host restart.
-2. **Illusory Sandbox Claims:** The documentation misrepresents basic path checking, command allowlisting, and environment variable scrubbing as an "Execution Security Sandbox." On a single-user workstation without containerization or OS sandboxing, allowlisted binaries (`npm`, `python`, `cargo`) run with full host user privileges.
-3. **Conflated State Model:** Task lifecycle status, run status, waiting/blocker reasons, and review verdicts are conflated into a single overloaded state enum across the PRD, architecture proposal, and database schema.
-
-Once these three items are corrected and the bounded compatibility spike defined in Section 5 is scheduled, Milestone 1 implementation is ready to proceed.
+1. **Non-Destructive Recovery:** Automatic forced worktree deletion is eliminated from all recovery, cancellation, and failure paths. The actual workspace—including tracked, untracked, and ignored files—is preserved on disk. Crash recovery relies on verified process ownership (PID, start time, command line) and handles lease inquiries without destructive side effects.
+2. **Realistic Execution Boundaries:** The execution boundary is honestly characterized as a **Cooperative Runtime Boundary (Defense-in-Depth)** for Milestone 1 workstation use, with explicit limitations documented. An advanced containerized/OS-isolated tier is specified as a distinct proposal.
+3. **Watertight Git Lifecycle:** One consistent lifecycle sequence is established: `Task base → candidate snapshot → automated verification → specialist review → owner acceptance → fast-forward integration into feature branch → Done`. Candidate commits stage intended changes immutably; tracked-file modifications during verification invalidate results; task integration is strictly fast-forward only (`git merge --ff-only`).
+4. **Preserved Product Stages & Normalized State Model:** Visible product stages (`Backlog`, `Ready`, `In Progress`, `Automated Checks`, `Code Review`, `QA`, `Done`, `Blocked`, `Cancelled`) are fully preserved in `tasks.status`. Orthogonal concerns (`task_runs.status`, `tasks.blocked_reason`, `review_records.verdict`, and `acceptance_records`) are separated into distinct schema fields.
+5. **Empirical Compatibility Spike:** Execution engine selection remains open. An offline experiment (`TSK-SPIKE-HARNESS-PARITY`) is scheduled before worker harness implementation to empirically evaluate CLI vs. in-process execution without making live provider requests.
 
 ---
 
-## 2. Findings Ordered by Severity
+## 2. Detailed Findings & Validated Resolutions
 
-### Finding 1 (CRITICAL): Destructive Automatic Cleanup in Crash Recovery Destroys Unfinished Work
+### Finding 1 (CRITICAL): Non-Destructive Recovery & Process Reconciliation
 - **Document References:**
-  - `docs/orchestrator/architecture-proposal.md`: Section 11.1 & 11.2 (lines 389–403)
-  - `docs/orchestrator/delivery-plan.md`: `TSK-M1-01` Scope (lines 53–62)
-- **Defect:**
-  The proposal mandates that upon restart, the recovery manager:
-  > *"queries `tasks` where status IN ('In Progress', 'Automated Checks', 'Code Review'). If heartbeat is stale (> 5 minutes), marks the run as INTERRUPTED, cleans up the task worktree (`git worktree remove --force`), and resets the task to Ready... Scans `.zen-worktrees/` for any directories not mapped to an active In Progress task in SQLite, running `git worktree remove --force` and `git worktree prune`."*
-- **Impact:**
-  This is catastrophic data loss. If the host machine reboots, loses power, or the orchestrator process crashes while a worker is editing files, all uncommitted code, partial edits, and scratchpad files inside the worktree are **permanently deleted**. Furthermore, if an external worker process is still alive and writing, running `git worktree remove --force` will corrupt file handles or fail with OS lock errors.
-- **Correction Required:**
-  - **Remove all automatic destructive cleanup of dirty worktrees.**
-  - If a lease expires or orchestrator reboots:
-    1. Terminate orphaned worker process groups gracefully (`SIGTERM` -> 5s -> `SIGKILL`).
-    2. Check git status of the worktree (`git status --porcelain`).
-    3. If dirty: create an emergency recovery commit on `refs/zen/recovery/<task-id>-<timestamp>` to preserve the exact disk state.
-    4. Transition the task to `Blocked (Interrupted / Recovery Required)` and alert the owner in the UI. Never delete uncommitted work without explicit owner confirmation.
-    5. Only clean up worktrees that are clean (`git status` empty) and whose changes are verified merged.
+  - `docs/orchestrator/architecture-proposal.md`: Section 7 & 11
+  - `docs/orchestrator/delivery-plan.md`: `TSK-M1-01`
+  - `docs/orchestrator/prd.md`: Section 5.3 (`REQ-NF-REL-02`)
+- **Analysis & Defect:**
+  Earlier drafts proposed running `git worktree remove --force` on stale worktrees upon orchestrator boot. This risked permanent data loss of uncommitted work and ignored files. Additionally, relying solely on an emergency Git commit is inadequate because Git commits do not capture untracked scratch files, build outputs, or ignored environment configurations.
+- **Validated Architectural Resolution:**
+  1. **Worker Identity & Ownership:** Before sending any signal (`SIGTERM`/`SIGKILL`), the orchestrator verifies:
+     - `process_pid`, `process_start_time` (verified via `/proc` or `ps -o lstart= -p <pid>`), and `process_cmdline`.
+     - Signals are sent to the verified process group (`-pid`) to avoid hitting recycled OS PIDs.
+  2. **Heartbeat Expiry != Worker Death:** A worker agent or test suite may miss heartbeat updates during heavy compilation, long test runs, CPU starvation, or high reasoning model latency. Heartbeat expiry triggers a process liveness check, not automatic task cancellation or worktree deletion.
+  3. **Prevention of Duplicate Execution:** Before dispatching an agent task, the scheduler verifies that no active process holds the task lease and checks file lock mutexes.
+  4. **Uncertain Process State Handling:** If process ownership or completion is ambiguous (e.g. PID exists but command line shifted, or git index is locked), the orchestrator places the task in `Blocked` with reason `RECONCILIATION_REQUIRED` and alerts the owner. It does not guess or force cleanup.
+  5. **Interrupted Git & Database Reconciliation:**
+     - Checks for `index.lock` in the worktree. Probes whether the lock owner process is still alive. If verified dead, removes `index.lock`.
+     - Compares the worktree HEAD against `task_runs.candidate_commit_sha`.
+     - If uncommitted changes exist, preserves the entire worktree directory untouched.
+  6. **Cleanup Eligibility:** A task worktree is eligible for deletion **only** when:
+     - `tasks.status = 'Done'`.
+     - The task candidate commit has been successfully merged into the feature branch via `git merge --ff-only`.
+     - `git status --porcelain` is clean.
+     - On any failure, cancellation, or interrupted recovery, the worktree is preserved on disk for owner review.
 
 ---
 
-### Finding 2 (HIGH): Execution Boundary Misrepresented as a Security Sandbox
+### Finding 2 (HIGH): Concrete Execution Boundary & Sandbox Realism
 - **Document References:**
-  - `docs/orchestrator/architecture-proposal.md`: Section 4.2 (lines 182–191)
-  - `docs/orchestrator/prd.md`: Section 4.5 (`REQ-F-SEC-01` to `REQ-F-SEC-04`)
-- **Defect:**
-  The documents describe working directory path checking (`assertPathWithinWorktree`), environment variable scrubbing, and command runner allowlisting as an "Execution Security Sandbox," claiming:
-  > *"Worker processes run with loopback-only environment bindings, preventing rogue scripts from exfiltrating code to external servers."*
-- **Technical Reality:**
-  - `assertPathWithinWorktree` only validates paths passed into the orchestrator's Node.js file tools. The moment the agent runs an allowlisted command (e.g. `npm test`, `pytest`, `cargo test`, `npm install`), the child process executes arbitrary code on the host OS as the host user.
-  - An allowlisted tool like `python` or `npm` can read `~/.ssh/id_rsa`, `~/.aws/credentials`, `~/.codex/auth.json`, and `/etc/passwd`, write to `/tmp`, spawn sub-daemons, or open raw TCP sockets.
-  - Environment variable filtering (`process.env`) does not prevent child processes from reading credentials stored in host dotfiles.
-  - "Loopback-only environment bindings" cannot block outbound socket connections from a compiled binary or node process without root-level OS firewall rules (`pf` on macOS, `iptables`/`nftables` on Linux).
-- **Correction Required:**
-  - Honestly label the execution boundary as a **Cooperative Runtime Boundary (Defense-in-Depth)**, not an adversarial security sandbox.
-  - Specify concrete, proportionate protections for a single-user workstation:
-    1. Run worker child processes with a non-zero process timeout (`[PROPOSAL: 120s]`) killing the entire process tree on expiration.
-    2. Confine Node.js file tools to the worktree root.
-    3. On macOS, evaluate optional `sandbox-exec` profiles or dedicated non-root user accounts for local server deployments; on Linux, evaluate `bubblewrap` (`bwrap`).
-    4. For network access: the **orchestrator** connects to local gateways (`127.0.0.1:8787-8789`); the worker child processes executing tests must run in offline mode (`npm test --offline` or test runner equivalent) unless the project explicitly defines external network dependencies.
+  - `docs/orchestrator/architecture-proposal.md`: Section 4
+  - `docs/orchestrator/prd.md`: Section 4.5
+- **Analysis & Defect:**
+  Prior text claimed that path checks, command allowlists, environment variable scrubbing, and `npm --offline` constituted an "Execution Security Sandbox" that prevented code exfiltration. In reality, any child process running `npm test` or `python` on the host executes with full host user privileges and can read any file the user can access (`~/.ssh`, `~/.aws`, `~/.codex`).
+- **Validated Architectural Resolution:**
+  1. **Cooperative Runtime Boundary (Milestone 1 Workstation Default):**
+     - Accurately labeled as a cooperative host boundary, not an impenetrable sandbox.
+     - Enforces Node.js file tool confinement via `fs.realpathSync` (`assertPathWithinWorktree`).
+     - Scrubs child environment variables of provider API keys and parent process tokens.
+     - Enforces process group isolation (`setpgid: true`) and process tree timeouts (`[PROPOSAL: 120s]` with `SIGKILL`).
+     - Documents explicit limitations: untrusted code running as the host user could inspect user-readable host files.
+  2. **Advanced Containerized Execution (Separate Proposal):**
+     - For untrusted third-party repositories, specifies an isolated container tier (rootless Podman, Docker, or Linux namespaces via `bubblewrap`; on macOS, `sandbox-exec` profiles).
+     - Mounts the host root read-only, task worktree read-write, and completely unmounts main `.git` metadata.
+  3. **Gateway Connectivity:**
+     - The orchestrator process makes all external and local LLM requests (`127.0.0.1:8787-8789`).
+     - Child test runner processes run locally and do not require gateway access unless the repository under test is Claude-Zen itself.
 
 ---
 
-### Finding 3 (HIGH): State Model Conflates Task Status, Run Status, Waiting Reasons, and Review Verdicts
+### Finding 3 (HIGH): One Consistent Git, Verification, and Acceptance Lifecycle
 - **Document References:**
-  - `docs/orchestrator/architecture-proposal.md`: Section 5 & Section 10.2 (lines 194–235, 360–380)
-  - `docs/orchestrator/prd.md`: Section 4.3 & 4.7
+  - `docs/orchestrator/architecture-proposal.md`: Section 6 & 7
+  - `docs/orchestrator/prd.md`: Section 3, 4.7, 4.8
+  - `docs/orchestrator/delivery-plan.md`: `TSK-M1-07`, `TSK-M1-08`, `TSK-M1-09`
+- **Analysis & Defect:**
+  The lifecycle sequence must account for untracked files, verification-generated artifacts, immutable acceptance, and fast-forward-only integration.
+- **Validated Lifecycle Sequence:**
+  ```
+  Task Base (zen/<feature-slug> HEAD)
+    │
+    ▼
+  Worktree Provisioned (.zen-worktrees/<task-id> on zen/task/<task-id>)
+    │
+    ▼
+  Worker Implementation (edits inside scope_paths)
+    │
+    ▼
+  Candidate Snapshot Created (git add <scope_paths> && git commit -> candidate_commit_sha)
+    │
+    ▼
+  Automated Verification (test & lint commands run against candidate_commit_sha)
+    ├─ If tracked files dirtied -> Verification FAILS immediately
+    ├─ If exit != 0 -> Bounded repair loop (max 3)
+    └─ If exit 0 -> verification_digest computed
+    │
+    ▼
+  Specialist Code Review (Adversarial review over diff base_commit_sha..candidate_commit_sha)
+    ├─ If files modified post-verification -> Prior review and checks INVALIDATED
+    └─ If APPROVE -> Ready for QA
+    │
+    ▼
+  Owner Acceptance (QA in UI approves existing candidate_commit_sha; no replacement commit)
+    │
+    ▼
+  Fast-Forward Integration (git checkout zen/<feature-slug> && git merge --ff-only zen/task/<task-id>)
+    ├─ If ff-only fails -> Blocked (INTEGRATION_CONFLICT); work preserved
+    └─ If ff-only succeeds -> Task status = Done; worktree pruned
+    │
+    ▼
+  Downstream DAG Tasks Unblock (blockedBy satisfied)
+  ```
+- **Key Invariants:**
+  - **Candidate Snapshot:** Contains all intended task changes, including newly created files within `scope_paths`.
+  - **Cleanliness Contract:** If verification modifies any tracked file outside `.gitignore`, verification fails with `E_VERIFICATION_DIRTIED_WORKING_TREE`.
+  - **Unexpected Untracked Files:** Test suites must write caches to gitignored paths; unexpected untracked files outside `scope_paths` block candidate creation.
+  - **Acceptance Invariance:** Acceptance approves the existing reviewed `candidate_commit_sha`. The orchestrator does not re-stage files or generate replacement commits upon acceptance.
+  - **Fast-Forward Only:** Task integration into `zen/<feature-slug>` is strictly `git merge --ff-only`. If the feature branch moved out-of-band, integration fails, work is preserved, task enters `Blocked (INTEGRATION_CONFLICT)`, and downstream tasks remain blocked until rebased and re-verified.
+  - **Separate Feature Merging:** Merging `zen/<feature-slug>` into `main` remains an explicit, owner-initiated step after all tasks are `Done`.
+
+---
+
+### Finding 4 (HIGH): State Model Normalization & Product Stage Preservation
+- **Document References:**
+  - `docs/orchestrator/architecture-proposal.md`: Section 5
+  - `docs/orchestrator/prd.md`: Section 4.3
   - `docs/orchestrator/delivery-plan.md`: `TSK-M1-04`
-- **Defect:**
-  The proposal forces orthogonal state domains into a single overloaded 9-state enum (`Backlog`, `Ready`, `In Progress`, `Automated Checks`, `Code Review`, `QA`, `Done`, `Blocked`, `Cancelled`):
-  - In `architecture-proposal.md:214`, `Automated Checks` and `Code Review` and `QA` are listed as task states, but in `prd.md`, owner approval is called `Accept Task` and specialist review is called `Code Review`.
-  - In `architecture-proposal.md:162`, the text references transient waiting conditions like `Code Review (Pending Specialist)` and `Blocked (Budget Exhausted)` as if they were states, yet they do not exist in the 9-state schema definition.
-  - A task may undergo multiple worker runs and repair attempts, but there is no clean separation between the status of the overall task work-item and the status of an individual execution run.
-- **Correction Required:**
-  - Decouple the state model into four distinct, normalized fields in the database schema:
-    1. **`tasks.status` (Work-Item Lifecycle):** `BACKLOG` | `READY` | `IN_PROGRESS` | `IN_REVIEW` | `DONE` | `BLOCKED` | `CANCELLED`.
-    2. **`task_runs.status` (Execution Run Lifecycle):** `QUEUED` | `RUNNING` | `VERIFYING` | `REVIEWING` | `SUCCEEDED` | `FAILED` | `ABORTED`.
-    3. **`tasks.blocked_reason` (Waiting / Blocked Reason):** `NULL` | `DEPENDENCIES_UNMET` | `REPAIR_LIMIT_EXCEEDED` | `SPECIALIST_UNAVAILABLE` | `BUDGET_EXCEEDED` | `CRASH_INTERRUPTED` | `AWAITING_OWNER_ACTION`.
-    4. **`review_records.verdict` (Review Evaluation):** `APPROVE` | `CHANGES_REQUESTED`.
-  - **Dependency Unblocking Rule:** Downstream tasks in `BACKLOG` transition to `READY` if and only if every task ID listed in `blocked_by` has `tasks.status = 'DONE'`.
+- **Analysis & Defect:**
+  Visible product stages (`Automated Checks`, `Code Review`, `QA`) must not be collapsed or eliminated for schema convenience. At the same time, transient run states, blocker reasons, and review verdicts must be decoupled.
+- **Validated State Model:**
+  1. **`tasks.status` (Visible Product Stages):**
+     - `Backlog`: Prerequisite tasks in `blockedBy` are not yet `Done`.
+     - `Ready`: Prerequisites met; ready for worktree provisioning.
+     - `In Progress`: Active worker agent implementation in worktree.
+     - `Automated Checks`: Non-LLM verifier executing test and lint suites.
+     - `Code Review`: Independent specialist model evaluating candidate diff.
+     - `QA`: Specialist approved; awaiting owner acceptance in browser UI.
+     - `Done`: Accepted and fast-forward integrated into feature branch.
+     - `Blocked`: Paused due to an explicit blocker reason; requires owner action.
+     - `Cancelled`: Terminated by owner.
+  2. **`task_runs.status` (Execution Attempt):**
+     - `PENDING`, `RUNNING`, `VERIFYING`, `REVIEWING`, `COMPLETED`, `FAILED`, `ABORTED`.
+  3. **`tasks.blocked_reason`:**
+     - `NULL`, `DEPENDENCIES_UNMET`, `REPAIR_LIMIT_EXCEEDED`, `SPECIALIST_UNAVAILABLE`, `BUDGET_EXCEEDED`, `RECONCILIATION_REQUIRED`, `INTEGRATION_CONFLICT`, `OWNER_CHANGES_REQUESTED`.
+  4. **`review_records.verdict`:**
+     - `APPROVE`, `CHANGES_REQUESTED`.
+  5. **`acceptance_records`:**
+     - Immutable audit record storing `task_id`, `candidate_commit_sha`, `accepted_by`, `accepted_at`, `integrated_commit_sha`, `integrated_at`.
+  - **Specialist Review Rule:** If the specialist model is unavailable, the task remains in `Code Review` with `blocked_reason = 'SPECIALIST_UNAVAILABLE'`. It is never downgraded to a worker tier or bypassed without explicit owner override.
 
 ---
 
-### Finding 4 (MEDIUM): Git Review Lifecycle Lacks Protection Against Verification Artifacts and Non-Fast-Forward Invalidation
+### Finding 5 (MEDIUM): Harness Choice & Empirical Compatibility Spike
 - **Document References:**
-  - `docs/orchestrator/architecture-proposal.md`: Section 6 & 7 (lines 240–280)
-  - `docs/orchestrator/prd.md`: Section 4.7 & 4.8
-- **Defect:**
-  1. **Verification-Generated Artifacts:** When automated tests run (`npm test`, `pytest`, `cargo test`), compilers and test runners frequently generate untracked or modified files (e.g. `.nyc_output/`, `coverage/`, `dist/`, `.pytest_cache/`, build logs). If these files dirty the worktree after the candidate commit is made, the proposed "invalidation on any file change" rule will cause an infinite loop: tests run -> tests generate `.cache` -> invalidation fires -> tests run again.
-  2. **Non-Fast-Forward Feature Merging:** If the candidate commit on `zen/task/<task-id>` is rebased or squash-merged into `zen/<feature-slug>` with conflicts or code shifts, the resulting commit tree SHA differs from the `candidate_commit_sha` reviewed by the specialist and owner.
-- **Correction Required:**
-  - **Artifact Cleanliness Contract:**
-    - Candidate commits stage **only** files matching `scope_paths`.
-    - Automated tests must run with outputs directed to ignored directories or temporary paths. If verification modifies any file tracked in git outside `.gitignore`, the verification **fails** with `E_VERIFICATION_DIRTIED_WORKING_TREE`.
-  - **Integration Integrity Contract:**
-    - In Milestone 1 (sequential execution), integrating an accepted task into `zen/<feature-slug>` must be strictly **fast-forward only**:
-      ```bash
-      git checkout zen/<feature-slug>
-      git merge --ff-only zen/task/<task-id>
-      ```
-    - Because it is a fast-forward merge, the commit SHA and tree SHA on `zen/<feature-slug>` are guaranteed to be **identical** to the reviewed `candidate_commit_sha`.
-    - If a fast-forward merge fails (indicating the owner modified the feature branch out-of-band), integration is blocked, and the task must be rebased and re-verified.
-
----
-
-### Finding 5 (MEDIUM): Harness Selection Assumes Unverified Parity Without Empirical Handshake Verification
-- **Document References:**
-  - `docs/orchestrator/architecture-proposal.md`: Section 2 (lines 20–97)
+  - `docs/orchestrator/architecture-proposal.md`: Section 2
+  - `docs/orchestrator/delivery-plan.md`: `TSK-M1-05`
   - `docs/orchestrator/decisions-and-open-questions.md`: Section 4, Question 2
-- **Defect:**
-  The proposal correctly flags `[UNVERIFIED: Gateway Parity]` for running the headless Claude Code CLI (`claude -p --output-format stream-json --bare`) against local proxies (`http://127.0.0.1:8787-8789`). However, it leaves this as an open question without defining an empirical test to settle it.
-  Existing code evidence shows that Claude Code sends dynamic tool schemas and protocol quirks that already required custom handling in `zen-proxy.mjs:311` (`Claude Code sends server-side tool stubs with no schema; skip those`). If the CLI sends unexpected beta headers or payload configurations that the local gateways reject, Approach A will fail completely in production.
-- **Correction Required:**
-  Implement a bounded, offline compatibility spike (detailed in Section 4 below) as a gating task before implementing the worker harness.
+- **Analysis & Defect:**
+  The planning package must not claim "guaranteed stability" or "zero dependency risk" for custom loops, nor should it discard CLI integration based on theoretical fears. The choice must be decided empirically via a bounded experiment.
+- **Validated Compatibility Spike Specification (`TSK-SPIKE-HARNESS-PARITY`):**
+  1. **Offline & Zero Live Provider Requests:** Test against a local mock Anthropic server replaying recorded SSE fixtures (`test/anthropic-sse.test.mjs`), with no real credentials or network egress.
+  2. **Audit Host Binary Options:** Inspect installed `claude` CLI version (2.1.231) flags: `--print`, `--output-format stream-json`, `--bare`, `--permission-mode dontAsk`, `--permission-prompts none`.
+  3. **Complete Tool Cycle:** Exercise `tool_use` -> `tool execution` -> `tool_result` -> `final response` with real-time NDJSON stream parsing.
+  4. **Verify Gateway Code with Mocked Upstream:** Route requests through actual local gateway adapters (`codex-gateway.mjs`, `antigravity-gateway.mjs`) with mocked provider responses to check header/schema forwarding.
+  5. **Decision Rule:** If PASS -> Approach A (Headless CLI) is viable for worker implementation; if FAIL -> Approach C (Custom In-Process Loop) is adopted.
+  6. **Documented Limitation:** A mock experiment validates CLI options, NDJSON parsing, and gateway handshakes, but cannot simulate live upstream model nuances (e.g. live Gemini thinking stream chunking).
 
 ---
 
-## 3. Recommended Decisions and Trade-offs
+## 3. Recommended Decisions and Trade-Offs
 
-| Decision Topic | Recommended Decision | Rationale & Trade-offs |
+| Decision | Recommendation | Trade-Off & Rationale |
 | :--- | :--- | :--- |
-| **Execution Boundary** | **Cooperative Process Boundary + Process Tree Timeout** | True OS virtualization (Docker / VM) adds prohibitive setup overhead for a single-user tool. Cooperative path confinement in Node.js + credential stripping + process tree timeouts (`SIGKILL`) provides strong, practical defense against accidental damage on local workstations. |
-| **Recovery Strategy** | **Non-Destructive Emergency Checkpointing** | Never delete uncommitted work. If a lease expires, checkpoint the worktree to `refs/zen/recovery/<task-id>-<ts>` and transition the task to `Blocked`. The owner can inspect or resume via UI. Trade-off: Requires disk space until owner confirms discard. |
-| **Git Integration** | **Fast-Forward Merge Only for Task Integration** | Ensures the git commit SHA on the feature branch is mathematically identical to the SHA evaluated by the specialist reviewer and owner. Trade-off: Disallows out-of-band commits to the feature branch while a task is in progress. |
-| **Harness Strategy** | **Approach C (Custom In-Process Loop) as Baseline, Approach A (CLI) Opt-In Post-Spike** | Approach C guarantees zero external binary dependency risk, native multi-port routing (`:8787` vs `:8788`), and total control over HTTP payloads. If the compatibility spike passes, Approach A can be offered as an optional engine. |
-| **State Normalization**| **Separate Task Status from Run Status & Blockers** | Decoupling `task.status` from `task_run.status` and `blocked_reason` prevents enum explosion, eliminates state machine ambiguities, and accurately models multi-run repair loops. |
+| **Execution Boundary** | **Proposal B (Cooperative Trusted-Local Mode) for M1** | Immediate implementation with zero container setup friction on personal Macs/servers; acceptable for trusted repositories; explicit limitations documented. Proposal A (Containers) planned for untrusted code. |
+| **Recovery Policy** | **Preserve Workspace on Disk; Reconcile Process Trees** | Eliminates accidental data loss on restart; requires disk management until owner reconciles or confirms discard. |
+| **Git Integration** | **Fast-Forward Merge Only (`--ff-only`) for Tasks** | Guarantees that what was reviewed and approved is mathematically identical to the commit on the feature branch. Blocks integration if feature branch drifted. |
+| **Harness Selection** | **Spike-Gated Selection** | Keeps options open until empirical evidence from `TSK-SPIKE-HARNESS-PARITY` establishes whether Approach A or Approach C should be coded. |
+| **Model Allocation** | **Dynamic Role-to-Model Mapping** | Maximizes flexibility across OpenAI, Google, and OpenCode accounts while avoiding vendor lock-in. |
 
 ---
 
-## 4. Exact Document Corrections Required
+## 4. Bounded Compatibility-Spike Task (`TSK-SPIKE-HARNESS-PARITY`)
 
-The following specific amendments must be made to the Phase 0 planning package:
-
-### 1. `docs/orchestrator/architecture-proposal.md`
-- **Section 4.2:** Change heading from "Execution Security & Sandboxing Policies" to "Cooperative Runtime Execution Boundary." Replace claims of "preventing rogue scripts from exfiltrating code" with clear documentation that host child processes run with host user privileges and require command allowlisting and process tree timeouts.
-- **Section 5.1:** Update the state machine diagram and transition table to use normalized statuses: `tasks.status` (`BACKLOG`, `READY`, `IN_PROGRESS`, `IN_REVIEW`, `DONE`, `BLOCKED`, `CANCELLED`), `task_runs.status`, and explicit `blocked_reason` values.
-- **Section 6.1:** Add the rule that verification execution must not modify git-tracked files outside `.gitignore`.
-- **Section 7:** Specify that integrating task commits into `zen/<feature-slug>` is strictly `git merge --ff-only`.
-- **Section 11.1 & 11.2:** Remove `git worktree remove --force` from the recovery routine. Add the emergency checkpointing routine (`refs/zen/recovery/...`) and task transition to `Blocked (Interrupted)`.
-
-### 2. `docs/orchestrator/prd.md`
-- **Section 4.5:** Update `REQ-F-SEC-01` through `REQ-F-SEC-04` to reflect cooperative process isolation, credential scrubbing, and process timeouts rather than an impenetrable sandbox.
-- **Section 4.7:** Add `REQ-F-REV-04` mandating that verification-generated changes to tracked files invalidate the candidate commit.
-- **Section 4.8:** Update `REQ-F-GOV-01` and `REQ-F-GOV-04` to specify fast-forward integration for task commits.
-- **Section 5.3:** Update `REQ-NF-REL-02` to require non-destructive recovery of interrupted worktrees.
-
-### 3. `docs/orchestrator/delivery-plan.md`
-- **Section 2.2 (`TSK-M1-01`):** Remove destructive worktree pruning from recovery scope. Add non-destructive checkpointing to `refs/zen/recovery/`.
-- **Section 2.2 (`TSK-M1-05`):** Insert the Bounded Compatibility Spike as a preliminary milestone task (`TSK-M1-04B` or subtask of `TSK-M1-05`).
-
-### 4. `docs/orchestrator/decisions-and-open-questions.md`
-- **Section 1 (`DEC-03`):** Clarify that process execution security is a cooperative host boundary with timeouts and path confinement, not a hypervisor/container sandbox.
-- **Section 1 (`DEC-09`):** Explicitly document that recovery is non-destructive.
-
----
-
-## 5. Bounded Compatibility-Spike Task Specification
-
-To resolve the harness selection question without making live provider requests or incurring token costs, execute this bounded compatibility spike prior to building `TSK-M1-05`:
-
-### Spike Task: `TSK-SPIKE-HARNESS-PARITY`
-- **Goal:** Verify whether headless Claude Code CLI (`claude -p --output-format stream-json --bare`) can communicate with local proxy gateways (`http://127.0.0.1:8787-8789`) without rejecting headers, stalling, or throwing protocol errors.
-- **Test Design (Zero Live Provider Calls):**
-  1. **Mock Gateway Server:** Spin up a temporary local HTTP server on `127.0.0.1:9876` that implements the Anthropic `/v1/messages` endpoint using recorded fixture responses from `test/anthropic-sse.test.mjs`.
-  2. **Subprocess Invocation:** Spawn `claude` with:
-     ```bash
-     ANTHROPIC_BASE_URL="http://127.0.0.1:9876" \
-     ANTHROPIC_API_KEY="test-mock-key" \
-     claude -p "Return test" \
-       --bare \
-       --output-format stream-json \
-       --tools "Read,Edit" \
-       --permission-mode dontAsk \
-       --permission-prompts none
-     ```
-  3. **Inspect Handshake:**
-     - The mock server logs request headers (`anthropic-version`, `anthropic-beta`) and request payload (`system`, `tools`, `messages`).
-     - The mock server responds with a valid chunked SSE stream containing a mock `tool_use` event, followed by a text response.
-  4. **Inspect Client Output:**
-     - Verify that `claude` outputs valid NDJSON on stdout (`system/init`, `stream_event`, `result`).
-     - Verify that `claude` exits cleanly with status code `0`.
+- **Task Identifier:** `TSK-M1-05` (scheduled prior to worker engine implementation in `TSK-M1-06`).
+- **Goal:** Validate headless Claude Code CLI invocability, NDJSON streaming, and local gateway protocol handshake in an offline test.
+- **Execution Rules:**
+  - 100% offline; zero outbound internet requests.
+  - Zero live provider credentials used.
 - **Pass Criteria:**
-  - `claude` connects to `127.0.0.1:9876`, parses the mock SSE stream, emits structured NDJSON on stdout, and exits `0`.
-  - No unsupported beta header crashes, no TTY prompt hangs, and no unhandled exceptions.
+  - Subprocess `claude -p --bare --output-format stream-json --permission-mode dontAsk` completes the mock tool cycle and exits `0`.
+  - NDJSON stdout stream parses cleanly into typed events (`system/init`, `stream_event`, `assistant`, `result`).
 - **Fail Criteria:**
-  - `claude` hangs waiting for TTY input despite `--permission-prompts none`.
-  - `claude` crashes due to missing proprietary Anthropic headers or endpoint validation.
-  - Parsing stdout fails or yields unstructured text.
-- **Fallback on Failure:**
-  - Immediately adopt **Approach C (Pure Custom Node.js Agent Loop)** for the worker harness, which has zero external binary dependency risk.
+  - CLI hangs waiting for TTY input despite `--permission-prompts none`.
+  - CLI crashes on non-Anthropic gateway headers.
+  - Protocol parsing fails or emits unstructured output.
 
 ---
 
-## 6. Implementation Readiness Summary
+## 5. Implementation-Readiness Verdict
 
-| Evaluation Area | Current Status | Required Action Prior to Coding |
-| :--- | :--- | :--- |
-| **1. Execution Boundary** | Defect Identified (Illusory sandbox claims) | Update docs to reflect cooperative boundary, command allowlisting, process tree timeouts, and test network policy. |
-| **2. Recovery & Cancellation** | Defect Identified (Destructive worktree cleanup) | Replace destructive cleanup with emergency checkpointing (`refs/zen/recovery/`) and non-destructive `Blocked` task holding. |
-| **3. Git & Review Lifecycle** | Needs Clarification | Codify artifact cleanliness rule (tests must not dirty git files) and strict fast-forward integration rule (`git merge --ff-only`). |
-| **4. State Model** | Inconsistent across docs | Normalize into 4 distinct fields: `task.status`, `task_run.status`, `blocked_reason`, and `review.verdict`. |
-| **5. Harness Choice** | Pending Verification | Execute `TSK-SPIKE-HARNESS-PARITY` against an offline mock server to empirically select Approach A or Approach C. |
+**PASS — READY FOR IMPLEMENTATION**
 
-**Final Recommendation:** Approve Phase 0 planning package subject to the document corrections listed in Section 4. Once updated, proceed directly to `TSK-M1-01` (Versioned Database Migrations).
+All contracts regarding non-destructive recovery, realistic execution boundaries, fast-forward git lifecycles, preserved product stages, and the empirical compatibility spike are settled and aligned across documentation.
+
+Milestone 1 implementation begins with:
+- **First Executable Task:** `TSK-M1-01` (Versioned Database Migrations & Non-Destructive Recovery Engine).

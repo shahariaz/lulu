@@ -1,6 +1,6 @@
 # Technical Architecture Proposal: Claude-Zen Self-Hosted AI Software Delivery Platform
 
-**Document Status:** Revision 1 — Comprehensive Architectural Design & Contracts  
+**Document Status:** Revision 2 — Resolved Architectural Contracts  
 **Date:** 2026-09-09  
 **Target Release:** v0.1.0 (Milestone 1: Core Vertical Slice)  
 
@@ -19,13 +19,13 @@ The system is engineered around six fundamental architectural tenets:
    - **Execution Security:** Confinement of child processes (Node.js/Bash) to the worktree path, environment variable scrubbing (removing API keys and credentials), command allowlisting/denylisting, process resource timeouts, and network boundary restrictions.
 4. **Fully Configurable Role Specialization:** Models are assigned to distinct operational roles (Planner, Worker, Reviewer) through dynamic configuration with zero hardcoded model lock-in. Specialist reviews remain strictly pending if their allowed models are unavailable.
 5. **Exact Review Artifact Contracts:** Review and acceptance anchor to an immutable triple: base commit SHA, candidate commit SHA / diff digest, and automated verification digest. Any subsequent file alteration automatically invalidates verification.
-6. **Decoupled Governance:** Task acceptance in the orchestrator is strictly decoupled from git committing (which selectively stages task-scoped files, preserving owner working edits) and feature merging (which remains an explicit owner action).
+6. **Decoupled Governance & Fast-Forward Integration:** Task acceptance in the orchestrator is strictly decoupled from fast-forward feature integration (`git merge --ff-only`), which is in turn decoupled from base-branch merging (`main`).
 
 ---
 
-## 2. Harness Integration Architecture: Trade-Off Analysis
+## 2. Harness Integration Architecture: Empirical Spike & Trade-Off Analysis
 
-A core technical decision is how the orchestrator drives agent execution. We evaluate three distinct architectural approaches:
+A core technical decision is how the orchestrator drives agent execution. Rather than prematurely declaring one approach as universally superior, the architecture evaluates three distinct integration models and specifies an empirical compatibility spike (`TSK-SPIKE-HARNESS-PARITY`) to decide between them based on observed facts.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
@@ -39,7 +39,7 @@ A core technical decision is how the orchestrator drives agent execution. We eva
 
 ### 2.1 Approach A: Spawning Headless Claude Code CLI
 
-- **Mechanism:** The orchestrator spawns `claude` as an external child process:
+- **Mechanism:** The orchestrator spawns `claude` (installed binary `2.1.231`) as a child process:
   ```bash
   claude -p "<prompt>" \
     --bare \
@@ -55,10 +55,10 @@ A core technical decision is how the orchestrator drives agent execution. We eva
   - **Turnkey Coding Engine:** Mature, production-tested implementations for file patching, fuzzy search, subagent delegation, and token context compaction out of the box.
   - **Process Isolation:** Memory leaks, infinite loops, or child crashes do not crash the parent orchestrator.
   - **Declarative Permissions:** Native support for `dontAsk`, `acceptEdits`, allow/deny pattern rules, and `PreToolUse` hooks.
-- **Trade-Offs & Limitations:**
-  - High process spawn overhead (~0.5s–1.5s cold spawn).
-  - Requires maintaining a robust NDJSON stream parser with buffer draining and exit signal handling (`SIGTERM`).
-  - *[UNVERIFIED: Gateway Parity]*: Claude Code CLI expects Anthropic API protocol parity. Pointing `ANTHROPIC_BASE_URL` to local proxies (`http://127.0.0.1:8787-8789`) requires the gateways to correctly forward or gracefully handle Anthropic beta headers (e.g. `prompt-caching-2024-07-31`, `structured-outputs-2025-11-13`) and Claude Code's extensive dynamic tool schemas without throwing HTTP 400 errors.
+- **Trade-Offs & Unknowns:**
+  - Process spawn overhead (~0.5s–1.5s cold spawn).
+  - Requires maintaining an NDJSON stream parser with buffer draining and exit signal handling (`SIGTERM`).
+  - *[UNVERIFIED: Gateway Parity]*: Claude Code CLI expects Anthropic API protocol parity. Pointing `ANTHROPIC_BASE_URL` to local proxies (`http://127.0.0.1:8787-8789`) requires the gateways to correctly forward or gracefully handle Anthropic beta headers (e.g. `prompt-caching-2024-07-31`, `structured-outputs-2025-11-13`) and Claude Code's dynamic tool schemas without throwing HTTP 400 errors.
 
 ### 2.2 Approach B: Claude Agent SDK / Anthropic SDK Tool Runner
 
@@ -69,8 +69,8 @@ A core technical decision is how the orchestrator drives agent execution. We eva
   - **Type-Safe In-Process Integration:** Native async iteration (`for await (const chunk of runner)`) eliminates subprocess stdin/stdout pipe serialization.
   - **Granular Execution Hooks:** Direct per-turn interception via `generateToolResponse()` or `canUseTool`.
   - **Warm Initialization:** B1 provides `startup()` to pre-warm the engine.
-- **Trade-Offs & Limitations:**
-  - B1 bundles a native binary behind the scenes; B2 has **zero built-in coding tools** (you must code `Read`, `Edit`, `Write`, `Bash` from scratch).
+- **Trade-Offs & Unknowns:**
+  - B1 bundles a native binary behind the scenes; B2 has **zero built-in coding tools** (requires building `Read`, `Edit`, `Write`, `Bash` from scratch).
   - *[UNVERIFIED: Gateway Parity]*: Local gateways must maintain complete compatibility with Anthropic SDK message structures and tool streaming deltas.
 
 ### 2.3 Approach C: Pure Custom Node.js Agentic Loop
@@ -81,19 +81,35 @@ A core technical decision is how the orchestrator drives agent execution. We eva
   3. When `tool_use` is encountered, executes local sandboxed JavaScript functions (`readFile`, `editFile`, `runCommand`).
   4. Appends `tool_result` to history and repeats until `stop_reason === 'end_turn'`.
 - **Strengths:**
-  - **Maximum Gateway Resilience:** 100% control over headers and payload shapes. Bypasses client SDK assumptions and can adapt dynamically to Google, OpenAI, or Zen proxy idiosyncrasies.
+  - **Direct Protocol Control:** 100% control over headers and payload shapes. Bypasses client SDK assumptions and can adapt dynamically to Google, OpenAI, or Zen proxy idiosyncrasies.
   - **Zero Startup Latency:** In-process, near-zero startup time (<5ms) and tiny memory footprint.
   - **Effortless Multi-Port Routing:** Trivial to route planning turns to port 8789 (Codex) and worker turns to port 8788 (Antigravity) within the same conversation loop.
-- **Trade-Offs & Limitations:**
-  - Requires maintaining the agentic loop, tool schema definitions, file patching algorithms, and context window truncation manually.
+- **Trade-Offs & Unknowns:**
+  - Requires writing and maintaining custom file-patching, line-number tracking, diff generation, and context truncation logic.
+  - *[UNVERIFIED: Custom Patch Robustness]*: Custom file editing tools may be more brittle on large files than Claude Code's mature internal file-patching engine.
 
-### 2.4 Integration Recommendation
+### 2.4 Empirical Compatibility Spike Specification (`TSK-SPIKE-HARNESS-PARITY`)
 
-| Use Case / Role | Recommended Approach | Rationale |
-| :--- | :--- | :--- |
-| **Planner / Architect** | **Approach C (Custom Loop)** | Planning requires simple structured conversation and markdown generation; no complex file-patching tools are needed. Direct gateway calls provide instant streaming and zero overhead. |
-| **Worker / Implementer** | **Approach A (Headless CLI) or C (Custom Loop)** | *Pending owner decision (Decision 2):* If gateway parity is verified, Approach A provides battle-tested coding tools; if parity is fragile, Approach C provides guaranteed stability. |
-| **Specialist Reviewer** | **Approach C (Custom Loop)** | Reviewing is purely read-only over an exact diff patch; custom loop with diff injection is simple, robust, and fast. |
+Rather than deciding based on assumptions, Milestone 1 schedules a preliminary offline experiment (`TSK-SPIKE-HARNESS-PARITY`):
+
+1. **Step 1: CLI Version & Invocability Audit:**
+   Run read-only verification on the installed host binary:
+   - `claude --version` (verified: `2.1.231`).
+   - Validate that flags `--print`, `--output-format stream-json`, `--bare`, `--permission-mode dontAsk`, `--permission-prompts none` are supported.
+2. **Step 2: Mock Gateway Smoke Test (Zero Live Calls):**
+   - Spin up an offline mock HTTP server on `127.0.0.1:9876` replaying Anthropic SSE fixtures (from `test/anthropic-sse.test.mjs`).
+   - Spawn `claude -p "smoke test" --bare --output-format stream-json --permission-mode dontAsk` pointing `ANTHROPIC_BASE_URL="http://127.0.0.1:9876"`.
+   - Verify that `claude` connects, parses SSE, emits valid NDJSON (`system/init`, `stream_event`, `result`), and exits `0`.
+3. **Step 3: Gateway Integration Test with Mock Upstream:**
+   - Spin up local gateway (`codex-gateway.mjs` or `antigravity-gateway.mjs`) with mocked upstream HTTP responses.
+   - Execute a complete `tool_use` -> `tool execution` -> `tool_result` -> `final turn` cycle.
+   - Verify structured streaming, permission denial handling, cancellation (`SIGINT` / `SIGTERM`), timeouts, and route pinning.
+4. **Pass/Fail Decision Criteria:**
+   - **PASS Criteria:** Claude Code completes the full mock tool cycle with NDJSON streaming and clean exit `0`. -> *Select Approach A for Worker Harness.*
+   - **FAIL Criteria:** Claude Code crashes on headers, hangs on stdin/stdout, or refuses non-standard base URLs. -> *Select Approach C (Custom Loop) for Worker Harness.*
+5. **Limitations of Mocked Spike:**
+   - Mocked tests verify CLI flag compatibility, stream parsing, and gateway handshake.
+   - Mocked tests **cannot** establish live-provider nuances (e.g. Gemini 3.8 thinking block handling, real upstream quota resets, or live token refresh under network latency).
 
 ---
 
@@ -117,7 +133,7 @@ A core technical decision is how the orchestrator drives agent execution. We eva
 │                             Orchestration Engine (Core)                                │
 │       - Deterministic Task State Machine    - Dependency DAG Scheduler                 │
 │       - Bounded Repair Loop Controller      - Token & Budget Guardrails                │
-│       - Git Worktree Isolation Manager      - Execution Security Sandbox               │
+│       - Git Worktree Manager                - Execution Boundary Controller            │
 └───────┬───────────────────────────────────┬────────────────────────────────────┬───────┘
         │                                   │                                    │
         ▼                                   ▼                                    ▼
@@ -144,70 +160,114 @@ A core technical decision is how the orchestrator drives agent execution. We eva
 
 ---
 
-## 4. Git Worktree Isolation vs. Execution Security
+## 4. Git Worktree Isolation vs. Concrete Execution Boundaries
 
 Claude-Zen strictly distinguishes **Git working-copy isolation** from **execution security**:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│ Git Working-Copy Isolation (Repository State)                                           │
+│ Git Working-Copy Isolation (Repository State Protection)                                │
 │  - Dedicated feature branch: git branch zen/<feature-slug>                              │
 │  - Isolated task worktree: git worktree add .zen-worktrees/<task-id> zen/<feature-slug> │
 │  - Benefit: User's active branch checkout (e.g. main) is NEVER touched or dirtied.      │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│ Execution Security & Sandboxing (Host Process Security)                                 │
-│  - Working Directory Confinement: assertPathWithinWorktree(targetPath, worktreeRoot)    │
-│  - Credential Scrubbing: Child env stripped of ANTHROPIC_API_KEY, OAuth tokens, etc.    │
-│  - Command Allowlisting: Only allowlisted build/test tools permitted (npm, go, cargo)   │
-│  - Network Confinement: Block outbound WAN connections; allow only local loopback       │
+│ Concrete Execution Security & Sandboxing Boundary (Host Process Protection)             │
+│  - Proposal A (Advanced): Container / OS Isolation (Docker / rootless podman / sandbox) │
+│  - Proposal B (Milestone 1 Default): Cooperative Trusted-Local Mode with explicit limits│
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4.1 Git Worktree Isolation Workflow (Milestone 1)
+### 4.1 Git Worktree Isolation Lifecycle (Milestone 1)
 1. **Branch Provisioning:** When a feature baseline is approved, the orchestrator creates `zen/<feature-slug>` from the base commit SHA.
 2. **Task Worktree Creation:** When a task enters `In Progress`, the orchestrator runs:
    ```bash
    git worktree add -b zen/task/<task-id> .zen-worktrees/<task-id> zen/<feature-slug>
    ```
 3. **Execution Confinement:** The worker agent's tools are pointed exclusively to `.zen-worktrees/<task-id>` as their root.
-4. **Checkpoint Commits:** When verification passes, changes inside the worktree are committed to `zen/task/<task-id>` producing the exact `candidate_commit_sha`.
-5. **Teardown & Cleanup:** When the task is accepted or cancelled:
+4. **Gitdir Pointer Protection:** In Git worktrees, `.git` is a file pointing to the main repo's `.git/worktrees/<task-id>`. The orchestrator prevents agent tools from reading or writing `.git` directly.
+5. **Preservation on Interruption:** If a task is interrupted, cancelled, or fails, the worktree is **never force-deleted**. It remains preserved on disk until explicitly reconciled or discarded by the owner.
+6. **Teardown & Cleanup:** When the task is successfully integrated via fast-forward merge into the feature branch:
    ```bash
    git worktree remove --force .zen-worktrees/<task-id>
    git worktree prune
    ```
 
-### 4.2 Execution Security & Sandboxing Policies
-1. **Filesystem Path Confinement:**
-   Every tool operation resolves canonical paths via `fs.realpathSync`. Any path outside `.zen-worktrees/<task-id>` throws an immediate security violation (`E_PATH_TRAVERSAL`).
-2. **Credential Sanitization:**
-   Processes spawned by the worker harness receive a sanitized `process.env`. All sensitive keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`, `CODEX_HOME`, SQLite paths) are stripped.
-3. **Command Runner Allowlist:**
-   Commands executed by the agent must match an allowlist: language toolchains (`npm`, `npx`, `pnpm`, `python`, `pytest`, `cargo`, `go`) and git queries (`git status`, `git diff`). Shell expansion (`|`, `;`, `&`, `eval`, `sudo`) is blocked.
-4. **Network Boundaries:**
-   Worker processes run with loopback-only environment bindings, preventing rogue scripts from exfiltrating code to external servers.
+### 4.2 Concrete Execution Security Boundaries
+
+Command allowlists, `cwd`, and environment variables alone **do not** confine arbitrary child-process code (e.g. `npm test` can execute arbitrary binary code, read host files, or spawn subprocesses). We define two clear, distinct proposals:
+
+#### Proposal A: Containerized / OS-Isolated Execution (Advanced Tier)
+- **Mechanism:** Worker and test commands execute inside an isolated container (Docker, rootless Podman, or Linux namespaces via `bubblewrap`). On macOS, executes under an explicit `sandbox-exec` profile.
+- **Filesystem:** Host filesystem is mounted read-only, except for `.zen-worktrees/<task-id>` which is mounted read-write. Main `.git` directory is completely unmounted; git metadata is accessed via a read-only gitdir stub.
+- **Credentials:** Zero host credentials mounted into container.
+- **Network:** Gateway connectivity to `127.0.0.1:8787-8789` permitted via host networking; external WAN egress blocked (`--network none` or packet filter), requiring dependencies to be pre-installed or mirrored.
+
+#### Proposal B: Cooperative Trusted-Local Execution (Milestone 1 Default)
+- **Context & Premise:** Recommended for Milestone 1 on single-user workstations where Docker setup overhead is avoided. The owner explicitly trusts local project scripts, but requires strong defense-in-depth against accidental damage.
+- **Concrete Protections:**
+  1. **Node.js Tool Path Confinement:** `assertPathWithinWorktree` resolves realpaths and blocks file tool traversal outside `.zen-worktrees/<task-id>`.
+  2. **Credential Stripping:** `process.env` passed to spawned child processes is sanitized, stripping all API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`), cloud tokens, and parent session secrets.
+  3. **Process Groups & Resource Limits:** Child processes are spawned in new process groups (`setpgid: true`). Every command has a hard timeout (`[PROPOSAL: 120s]`). On expiration, the entire process tree is terminated (`SIGTERM` -> 5s -> `SIGKILL`).
+  4. **Command Allowlist:** Only standard build/test runners (`npm`, `pytest`, `cargo`, `go`) and git status tools are permitted. Shell interpreters (`sh -c`, `eval`, `sudo`) are blocked.
+  5. **Network Policy:** Test runners are encouraged to run offline (`npm test --offline`) where supported. Gateways listen on `127.0.0.1:8787-8789` and are reached directly by the orchestrator, not child test scripts.
+  6. **Explicit Limitations:** On host execution, malicious or rogue test scripts could theoretically read host files readable by the user. Users requiring untrusted code execution must run Claude-Zen in a VM or dedicate a non-root user.
 
 ---
 
-## 5. Task State Machine & Governance Matrix
+## 5. Normalized State Model & Lifecycle Transitions
+
+To eliminate state conflation, the orchestrator architecture decouples four distinct domains:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                Normalized State Domains                                │
+├─────────────────────────┬───────────────────────────────┬──────────────────────────────┤
+│ Domain                  │ Database Location             │ Allowed Values / Types       │
+├─────────────────────────┼───────────────────────────────┼──────────────────────────────┤
+│ 1. Task Status          │ tasks.status                  │ Backlog, Ready, In Progress, │
+│    (Product Stages)     │                               │ Automated Checks,            │
+│                         │                               │ Code Review, QA, Done,       │
+│                         │                               │ Blocked, Cancelled           │
+├─────────────────────────┼───────────────────────────────┼──────────────────────────────┤
+│ 2. Run Status           │ task_runs.status              │ PENDING, RUNNING, VERIFYING, │
+│    (Execution Attempt)  │                               │ REVIEWING, COMPLETED,        │
+│                         │                               │ FAILED, ABORTED              │
+├─────────────────────────┼───────────────────────────────┼──────────────────────────────┤
+│ 3. Blocker Reason       │ tasks.blocked_reason          │ NULL, DEPENDENCIES_UNMET,    │
+│    (Waiting Cause)      │                               │ REPAIR_LIMIT_EXCEEDED,       │
+│                         │                               │ SPECIALIST_UNAVAILABLE,      │
+│                         │                               │ BUDGET_EXCEEDED,             │
+│                         │                               │ RECONCILIATION_REQUIRED,     │
+│                         │                               │ INTEGRATION_CONFLICT,        │
+│                         │                               │ OWNER_CHANGES_REQUESTED      │
+├─────────────────────────┼───────────────────────────────┼──────────────────────────────┤
+│ 4. Review Verdict       │ review_records.verdict        │ APPROVE, CHANGES_REQUESTED   │
+├─────────────────────────┼───────────────────────────────┼──────────────────────────────┤
+│ 5. Acceptance Record    │ acceptance_records            │ candidate_commit_sha,        │
+│                         │                               │ accepted_by, accepted_at,    │
+│                         │                               │ integrated_commit_sha        │
+└─────────────────────────┴───────────────────────────────┴──────────────────────────────┘
+```
+
+### 5.1 Visible Product Stages State Machine
 
 ```
                   ┌──────────────┐
                   │   Backlog    │
                   └──────┬───────┘
-                         │ (Dependencies satisfied)
+                         │ (All blockedBy tasks status = 'Done')
                          ▼
                   ┌──────────────┐
                   │    Ready     │
                   └──────┬───────┘
-                         │ (Orchestrator provisions worktree)
+                         │ (Orchestrator claims task, provisions worktree)
                          ▼
                   ┌──────────────┐
        ┌─────────▶│ In Progress  │◀─────────┐
        │          └──────┬───────┘          │
-       │                 │ (Worker requests verification)
+       │                 │ (Worker requests verification; candidate snapshot taken)
        │                 ▼                  │
        │          ┌──────────────┐          │
        │ (Fail    │  Automated   │          │ (Changes requested
@@ -221,15 +281,15 @@ Claude-Zen strictly distinguishes **Git working-copy isolation** from **executio
        │                 │ (Specialist approves)
        │                 ▼
        │          ┌──────────────┐
-       │          │      QA      │
+       │          │      QA      │ (Owner Acceptance)
        │          └──────┬───────┘
-       │                 │ (Owner accepts in UI)
+       │                 │ (Owner accepts in UI -> Fast-Forward Merge)
        │                 ▼
        │          ┌──────────────┐
        │          │     Done     │
        │          └──────────────┘
        │
-       │ (Exceeds max repair attempts)
+       │ (Exceeds repair limit / Unreconciled crash / Integration conflict)
        ▼
 ┌──────────────┐                     ┌──────────────┐
 │   Blocked    │                     │  Cancelled   │
@@ -237,75 +297,116 @@ Claude-Zen strictly distinguishes **Git working-copy isolation** from **executio
 └──────────────┘                     └──────────────┘
 ```
 
-### 5.1 State Progression Rules
+### 5.2 Transition Authority & Evidence Rules
 
-| State | Allowed Transitions | Transition Gate / Required Evidence |
-| :--- | :--- | :--- |
-| **`Backlog`** | `Ready`, `Cancelled` | **Automated:** All dependency task IDs in `blockedBy` have status `Done`. |
-| **`Ready`** | `In Progress`, `Cancelled` | **Automated:** No other task is active in project (single active writer rule). Worktree provisioned. |
-| **`In Progress`** | `Automated Checks`, `Blocked`, `Cancelled` | **Worker Agent:** Worker calls `request_verification`. Edits flushed to worktree. |
-| **`Automated Checks`** | `In Progress` (Repair), `Code Review`, `Blocked` | **Verifier Engine:** Tests exit 0 -> advances to `Code Review`. Tests exit != 0 -> if `repair_attempts < max_repairs`, increments counter and returns to `In Progress`; else transitions to `Blocked`. |
-| **`Code Review`** | `QA`, `In Progress`, `Code Review (Pending)` | **Specialist Reviewer:** Verdict `APPROVE` -> advances to `QA`. Verdict `CHANGES_REQUESTED` -> returns to `In Progress`. Specialist model unavailable -> enters `Code Review (Pending Specialist)`. |
-| **`QA`** | `Done`, `In Progress` | **Human Owner:** Owner clicks **Accept** -> transitions to `Done`. Owner clicks **Request Changes** -> returns to `In Progress`. |
-| **`Done`** | Terminal (or `In Progress` via rework) | Task changes committed to feature branch; worktree removed. |
-| **`Blocked`** | `Ready`, `In Progress`, `Cancelled` | **Human Owner:** Owner resolves blockage, adjusts parameters/code, and resumes task. |
-
----
-
-## 6. Exact Review Artifact Contract
-
-To eliminate ambiguity and prevent race conditions, the review and acceptance process operates exclusively on an **immutable review artifact**:
-
-```json
-{
-  "task_id": "TSK-01",
-  "base_commit_sha": "a1b2c3d4e5f6...",
-  "candidate_commit_sha": "f6e5d4c3b2a1...",
-  "diff_digest": "sha256:8f4c2e...",
-  "verification_digest": "sha256:1a2b3c...",
-  "verification_exit_code": 0,
-  "verified_at": 1773280000000
-}
-```
-
-### 6.1 Invalidation on Subsequent Alteration
-If any file within the worktree is modified after automated verification (e.g. by a background script or human edit), the computed `diff_digest` no longer matches the verification record. The orchestrator:
-1. Immediately marks prior verification results as **Invalidated**.
-2. Revokes any pending or completed specialist review verdicts.
-3. Resets the task state back to `Automated Checks`.
-4. Prevents the owner from accepting an unverified diff.
+| Current Stage | Target Stage | Authority | Required Verifiable Evidence |
+| :--- | :--- | :--- | :--- |
+| **`Backlog`** | **`Ready`** | DAG Scheduler | Every task ID in `blockedBy` has `tasks.status = 'Done'`. |
+| **`Ready`** | **`In Progress`** | Task Dispatcher | Single active writer rule holds. Task worktree `.zen-worktrees/<task-id>` successfully provisioned. `task_runs` record created with status `RUNNING`. |
+| **`In Progress`** | **`Automated Checks`** | Worker Agent | Worker calls `request_verification`. Orchestrator stages `scope_paths` and commits `candidate_commit_sha`. |
+| **`Automated Checks`** | **`In Progress` (Repair)** | Verifier Engine | Tests exit != 0 AND `repair_attempts < max_repairs`. Failure logs injected into worker. `tasks.blocked_reason = 'REPAIR_ATTEMPT'`. |
+| **`Automated Checks`** | **`Blocked`** | Verifier Engine | Tests exit != 0 AND `repair_attempts >= max_repairs`. `tasks.blocked_reason = 'REPAIR_LIMIT_EXCEEDED'`. |
+| **`Automated Checks`** | **`Code Review`** | Verifier Engine | Tests exit 0 AND zero tracked files modified during test execution. `verification_digest` recorded. |
+| **`Code Review`** | **`In Progress`** | Specialist Reviewer | Specialist outputs verdict `CHANGES_REQUESTED`. Findings attached to task run. |
+| **`Code Review`** | **`QA`** | Specialist Reviewer | Specialist outputs verdict `APPROVE`. `review_records` created. |
+| **`Code Review`** | **`Blocked`** | Orchestrator | Specialist reviewer model unavailable across all configured accounts. `tasks.blocked_reason = 'SPECIALIST_UNAVAILABLE'`. (Never bypassed). |
+| **`QA`** | **`Done`** | Human Owner + Git | Owner clicks **Accept** in UI. Orchestrator runs `git merge --ff-only zen/task/<task-id>` into `zen/<feature-slug>`. On success: task status -> `Done`, worktree pruned. |
+| **`QA`** | **`Blocked`** | Git Integration | Fast-forward merge fails (feature branch shifted). `tasks.blocked_reason = 'INTEGRATION_CONFLICT'`. Worktree preserved. |
+| **`QA`** | **`In Progress`** | Human Owner | Owner clicks **Request Changes** with correction notes. |
+| **Any Stage** | **`Cancelled`** | Human Owner | Owner clicks **Cancel**. Process tree terminated; worktree preserved for owner inspection. |
 
 ---
 
-## 7. Decoupled Acceptance, Committing, and Merging Workflow
+## 6. One Git, Verification, and Acceptance Lifecycle
+
+The lifecycle follows one consistent, watertight sequence:
+`Task base → candidate snapshot → automated verification → specialist review → owner acceptance → fast-forward integration into feature branch → Done`.
 
 ```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ Decoupled Governance Model                                                             │
-├────────────────────────────┬─────────────────────────────┬─────────────────────────────┤
-│ Stage 1: Task Acceptance   │ Stage 2: Selective Commit   │ Stage 3: Feature Merge      │
-├────────────────────────────┼─────────────────────────────┼─────────────────────────────┤
-│ - Owner reviews diff in UI │ - Orchestrator stages ONLY  │ - Feature complete (all M1  │
-│ - Verifies test outputs    │   files in task scope_paths │   tasks in Done state)      │
-│ - Clicks "Accept Task"     │ - Preserves uncommitted     │ - Explicit owner action:    │
-│ - Task status -> Done      │   owner edits elsewhere     │   "Merge Feature Branch"    │
-│ - Worktree pruned          │ - Clean git commit on       │ - Squash/rebase merge       │
-│                            │   branch zen/<feature-slug> │   into main branch          │
-└────────────────────────────┴─────────────────────────────┴─────────────────────────────┘
+Task Base (zen/<feature-slug> HEAD)
+  │
+  ▼
+Worktree Provisioned (.zen-worktrees/<task-id> on zen/task/<task-id>)
+  │
+  ▼
+Worker Implementation (edits inside scope_paths)
+  │
+  ▼
+Candidate Snapshot Created (git add <scope_paths> && git commit -> candidate_commit_sha)
+  │
+  ▼
+Automated Verification (test & lint commands run against candidate_commit_sha)
+  ├─ If tracked files dirtied -> Verification FAILS immediately
+  ├─ If exit != 0 -> Bounded repair loop (max 3)
+  └─ If exit 0 -> verification_digest computed
+  │
+  ▼
+Specialist Code Review (Adversarial review over diff base_commit_sha..candidate_commit_sha)
+  ├─ If files modified post-verification -> Prior review and checks INVALIDATED
+  └─ If APPROVE -> Ready for QA
+  │
+  ▼
+Owner Acceptance (QA in UI approves existing candidate_commit_sha; no replacement commit)
+  │
+  ▼
+Fast-Forward Integration (git checkout zen/<feature-slug> && git merge --ff-only zen/task/<task-id>)
+  ├─ If ff-only fails -> Blocked (INTEGRATION_CONFLICT); work preserved
+  └─ If ff-only succeeds -> Task status = Done; worktree pruned
+  │
+  ▼
+Downstream DAG Tasks Unblock (blockedBy satisfied)
 ```
+
+### 6.1 Cleanliness & Artifact Integrity Rules
+1. **Candidate Commits are Immutable:** Acceptance references the existing `candidate_commit_sha`. The system **never** re-stages files or creates replacement commits upon acceptance.
+2. **Tracked File Dirtiness Fails Verification:** If automated tests modify any tracked git file (outside `.gitignore`), verification immediately fails with `E_VERIFICATION_DIRTIED_WORKING_TREE`. Tests must write caches to gitignored paths.
+3. **Unexpected Untracked Files:** Untracked files generated outside `scope_paths` and not matching `.gitignore` are flagged. The worker must clean them or add them to `.gitignore` before candidate creation.
+4. **Rebase Requires Fresh Verification:** If integration cannot fast-forward and requires a rebase, the new commit SHA must undergo full automated verification and specialist review.
+
+---
+
+## 7. Non-Destructive Recovery & Cancellation Engine
+
+The orchestrator guarantees that **unfinished work is never automatically destroyed**.
+
+### 7.1 Process Ownership & Identity
+Before signaling any OS process, the orchestrator verifies process identity:
+- Records: `process_pid`, `process_start_time` (from `/proc/<pid>/stat` or OS ps), and `process_cmdline`.
+- When signaling (timeout, cancellation, restart):
+  1. Inspects whether the PID exists (`kill(pid, 0)`).
+  2. Verifies that the PID's start time matches the recorded start time (preventing accidental signals to recycled OS PIDs).
+  3. Sends `SIGTERM` to the process group (`-pid`). Waits 5 seconds; if still running, sends `SIGKILL`.
+
+### 7.2 Why Heartbeat Expiry Does Not Prove Process Death
+A worker agent or test suite may miss heartbeat updates due to:
+- Long test suite execution (e.g. end-to-end integration test taking 4 minutes).
+- Heavy CPU compilation or memory swapping.
+- Extended LLM thinking turn latency on complex reasoning models.
+Therefore, **heartbeat expiry alone NEVER triggers worktree deletion or task reset**. It triggers a status inquiry: probe whether the process group is actively consuming CPU/running. If running, the lease is extended; if verified dead, reconciliation begins.
+
+### 7.3 Boot-Time Reconciliation Protocol
+Upon orchestrator boot after a crash or power failure:
+1. **Probe Active Runs:** Query `task_runs` where status IN (`RUNNING`, `VERIFYING`, `REVIEWING`).
+2. **Process Liveness:** Check recorded PIDs. If any process survived the restart, terminate it gracefully.
+3. **Reconcile Git Locks:** Inspect worktree directories for `index.lock` or worktree locks. Clear locks only after verifying that no process holds the file handle.
+4. **Preserve Workspace:** Inspect git status (`git status --porcelain`) in `.zen-worktrees/<task-id>`.
+   - If dirty: **DO NOT DELETE**. Stash changes or create a checkpoint commit on `refs/zen/recovery/<task-id>-<timestamp>`.
+   - Transition task to `Blocked` with reason `RECONCILIATION_REQUIRED`.
+   - Display a notification in the UI allowing the owner to view the preserved diff and decide whether to resume, rebase, or discard.
+5. **Clean Worktree Pruning:** Pruning (`git worktree remove`) is executed **only** on worktrees whose tasks have `status = 'Done'` and whose commits are verified merged into the feature branch.
 
 ---
 
 ## 8. Configurable Model Strategy & Quota Failover
 
-The orchestrator eliminates hardcoded models, providing dynamic role-to-model configuration:
+All model allocations are dynamic and configurable in SQLite / settings:
 
-| Operational Role | Default Provider & Model | Configurable Parameters | Fallback & Exhaustion Behavior |
+| Role | Default Config | Supported Options | Fallback / Exhaustion Policy |
 | :--- | :--- | :--- | :--- |
-| **Planner / Architect** | Configured Strong Model (Claude 3.7 Sonnet / Opus via Antigravity OR GPT-5.6-sol via Codex) | `provider`, `model`, `reasoning_effort` | Attempt fallback strong model in pool. If all strong models exhausted, task enters `Blocked (Planning Model Unavailable)`. |
-| **Worker / Implementer** | Configured Worker Model (Gemini 3.8 Flash via Antigravity) | `provider`, `model`, `reasoning_effort` | Rotate across accounts in pool. Fallback to alternative fast models (e.g. MiMo/Qwen). |
+| **Planner / Architect** | Strong Model (Claude 3.7 Sonnet Thinking via Antigravity OR GPT-5.6-sol via Codex) | Any provider model supporting multi-turn chat | Attempt configured fallback strong model in pool. If exhausted: task pauses with `BLOCKED` (`SPECIALIST_UNAVAILABLE`). |
+| **Worker / Implementer** | Fast Bounded Worker (Gemini 3.8 Flash via Antigravity) | Configured Worker Model (Codex, Antigravity, OpenCode Zen) | Rotate across accounts in pool. Fallback to alternative fast models. |
 | **Automated Verifier** | Pure Deterministic Code (No LLM) | Command string, timeout, env | N/A (runs local test runners). |
-| **Specialist Reviewer** | Configured Strong Model (Claude 3.7 Sonnet Thinking via Antigravity OR GPT-5.6-sol via Codex) | `provider`, `model`, `reasoning_effort` | **STRICT RULE:** Must remain in `Code Review (Pending Specialist)` if unavailable. Never downgrade review to worker tier. |
+| **Specialist Reviewer** | Strong Model (Claude 3.7 Sonnet Thinking via Antigravity OR GPT-5.6-sol via Codex) | Any high-reasoning model supporting diff analysis | **STRICT RULE:** Must remain in `Code Review` with blocker reason `SPECIALIST_UNAVAILABLE`. Never downgrade review to worker tier or bypass. |
 
 ---
 
@@ -314,27 +415,26 @@ The orchestrator eliminates hardcoded models, providing dynamic role-to-model co
 All numerical limits are proposals (`[PROPOSAL: ...]`) requiring owner confirmation.
 
 ### 9.1 Observed vs. Estimated Token Usage
-1. **Observed Usage:** Upstream provider token counts (Google Cloud Code `promptTokenCount` / `candidatesTokenCount`, OpenAI `usage.prompt_tokens`) are recorded as canonical.
-2. **Estimated Usage:** When streaming or when an upstream provider omits token metrics (e.g. some OpenCode routes), the orchestrator calculates heuristic token usage (`Math.ceil(characterCount / 4)`) and tags the record in SQLite with `is_estimated = 1`.
-3. **Usage Aggregation:** The system exposes both `observed_tokens` and `estimated_tokens` on task dashboards.
+1. **Observed Usage:** Exact token counts reported by upstream provider APIs (Google Cloud Code `promptTokenCount`, OpenAI `usage.prompt_tokens`) are recorded as canonical.
+2. **Estimated Usage:** When streaming or when an upstream proxy omits token metrics (e.g. some OpenCode routes), the orchestrator calculates heuristic token usage (`Math.ceil(characterCount / 4)`) and tags the record in SQLite with `is_estimated = 1`.
+3. **Limits That Cannot Be Enforced Exactly:** Because LLM token consumption is only known after streaming completes, token ceilings act as hard turn-stop thresholds rather than instantaneous per-word cutoffs.
 
 ### 9.2 Budget Ceilings & Exhaustion
 - **Proposed Ceilings:**
   - Feature Budget: `[PROPOSAL: 500,000 tokens]`
   - Single Task Budget: `[PROPOSAL: 150,000 tokens]`
-  - Specialist Review Budget: `[PROPOSAL: 80,000 tokens]`
+  - Dedicated Specialist Reviewer Budget: `[PROPOSAL: 80,000 tokens]`
 - **Exhaustion Handling:**
-  - When cumulative task usage reaches `[PROPOSAL: 90%]`, a warning is displayed.
-  - When usage reaches `100%`, execution halts immediately. The task transitions to `Blocked (Budget Ceiling Reached)` and requires an explicit owner budget increase to resume.
+  - When cumulative task usage reaches `[PROPOSAL: 90%]`, a warning is emitted in the UI.
+  - When usage reaches `100%`, execution halts immediately. The task transitions to `Blocked` with reason `BUDGET_EXCEEDED` and requires an explicit owner budget increase to resume.
 
 ---
 
 ## 10. Persistence Schema & Versioned Migrations
 
-All control-plane state is persisted in a dedicated SQLite database (`~/.zen-claude/zen-orchestrator.sqlite`) using Node.js native `DatabaseSync` in WAL mode.
+All control-plane state is persisted in `~/.zen-claude/zen-orchestrator.sqlite` using Node.js native `DatabaseSync` in WAL mode.
 
-### 10.1 Versioned Migrations Engine
-Schema changes are managed via a `schema_migrations` table:
+### 10.1 Versioned Migrations Table
 ```sql
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version INTEGER PRIMARY KEY,
@@ -342,7 +442,6 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
   applied_at INTEGER NOT NULL
 );
 ```
-Migration files (`001_initial_schema.sql`, `002_add_worktrees.sql`) execute sequentially inside transactions.
 
 ### 10.2 Relational Data Model
 
@@ -353,9 +452,9 @@ Migration files (`001_initial_schema.sql`, `002_add_worktrees.sql`) execute sequ
                                                                │
                                                               1:N
                                                                ▼
-┌──────────────┐       ┌────────────────────────┐       ┌──────────────┐
-│  audit_logs  │       │       task_runs        │◀──1:N─│    tasks     │
-└──────────────┘       └───────────┬────────────┘       └──────────────┘
+┌────────────────────┐ ┌────────────────────────┐       ┌──────────────┐
+│ acceptance_records │ │       task_runs        │◀──1:N─│    tasks     │
+└────────────────────┘ └───────────┬────────────┘       └──────────────┘
                                    │
                                   1:N
                                    ▼
@@ -367,21 +466,9 @@ Migration files (`001_initial_schema.sql`, `002_add_worktrees.sql`) execute sequ
 1. **`projects`**: `id`, `name`, `repo_path`, `active_branch`, `created_at`.
 2. **`requirements_baselines`**: `id`, `project_id`, `version`, `spec_markdown`, `status` (`DRAFT`, `APPROVED`, `SUPERSEDED`), `approved_at`, `approved_by`.
 3. **`milestones`**: `id`, `baseline_id`, `title`, `order_index`.
-4. **`tasks`**: `id`, `milestone_id`, `title`, `description`, `scope_paths_json`, `status` (9 states), `blocked_by_json`, `worktree_path`, `repair_attempts`, `max_repairs` (default 3), `created_at`, `updated_at`.
-5. **`task_runs`**: `id`, `task_id`, `role`, `model`, `provider`, `account_email`, `input_tokens`, `output_tokens`, `is_estimated`, `base_commit_sha`, `candidate_commit_sha`, `diff_digest`, `started_at`, `completed_at`, `status`.
-6. **`verification_results`**: `id`, `task_run_id`, `command`, `exit_code`, `output_log`, `verification_digest`, `passed`, `executed_at`.
-7. **`audit_logs`**: `id`, `project_id`, `event_type`, `actor`, `details_json`, `timestamp`.
-
----
-
-## 11. Crash Recovery & Resilience Architecture
-
-1. **Startup Recovery Routine:**
-   On orchestrator boot, the engine executes a recovery sweep:
-   - Queries `tasks` where status IN (`In Progress`, `Automated Checks`, `Code Review`).
-   - Checks the lease heartbeat timestamp in `task_runs`.
-   - If heartbeat is stale (> `[PROPOSAL: 5 minutes]`), marks the run as `INTERRUPTED`, cleans up the task worktree, and resets the task to `Ready` (or `Blocked` if uncommitted changes exist).
-2. **Orphaned Worktree Pruning:**
-   Scans `.zen-worktrees/` for any directories not mapped to an active `In Progress` task in SQLite, running `git worktree remove --force` and `git worktree prune`.
-3. **Stale Lock Cleanup:**
-   Cleans up stale directory locks (`*.lock.d`) and PID files left behind by ungraceful host reboots.
+4. **`tasks`**: `id`, `milestone_id`, `title`, `description`, `scope_paths_json`, `status` (`Backlog`, `Ready`, `In Progress`, `Automated Checks`, `Code Review`, `QA`, `Done`, `Blocked`, `Cancelled`), `blocked_by_json`, `blocked_reason`, `worktree_path`, `repair_attempts`, `max_repairs` (default 3), `created_at`, `updated_at`.
+5. **`task_runs`**: `id`, `task_id`, `role`, `model`, `provider`, `account_email`, `input_tokens`, `output_tokens`, `is_estimated`, `base_commit_sha`, `candidate_commit_sha`, `diff_digest`, `started_at`, `completed_at`, `status` (`PENDING`, `RUNNING`, `VERIFYING`, `REVIEWING`, `COMPLETED`, `FAILED`, `ABORTED`).
+6. **`verification_results`**: `id`, `task_run_id`, `command`, `exit_code`, `output_log`, `verification_digest`, `environment_info_json`, `passed`, `executed_at`.
+7. **`review_records`**: `id`, `task_run_id`, `candidate_commit_sha`, `verdict` (`APPROVE`, `CHANGES_REQUESTED`), `summary`, `findings_json`, `reviewed_at`.
+8. **`acceptance_records`**: `id`, `task_id`, `candidate_commit_sha`, `accepted_by`, `accepted_at`, `integrated_commit_sha`, `integrated_at`.
+9. **`audit_logs`**: `id`, `project_id`, `event_type`, `actor`, `details_json`, `timestamp`.

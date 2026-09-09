@@ -8,6 +8,7 @@ import { ProjectExplorer } from './components/ProjectExplorer'
 import { EpicPlannerView } from './components/EpicPlannerView'
 import { SpecDiffViewer } from './components/SpecDiffViewer'
 import { SwarmVisualizer } from './components/SwarmVisualizer'
+import { IdeaStudioView } from './components/IdeaStudioView'
 import { ActionBar } from './components/ActionBar'
 import { Button } from './components/ui/Button'
 import { Badge } from './components/ui/Badge'
@@ -23,7 +24,7 @@ import type {
   ReviewRecord,
 } from './types'
 
-type TabType = 'board' | 'scoper' | 'projects' | 'diff' | 'preview' | 'epics' | 'specdiff' | 'swarm'
+type TabType = 'board' | 'studio' | 'scoper' | 'projects' | 'diff' | 'preview' | 'epics' | 'specdiff' | 'swarm'
 
 export function App() {
   const [currentTab, setCurrentTab] = useState<TabType>('board')
@@ -178,6 +179,17 @@ export function App() {
           </button>
 
           <button
+            onClick={() => setCurrentTab('studio')}
+            className={`w-full text-left px-3 py-2 rounded-md text-xs font-medium flex items-center gap-2.5 transition-colors ${
+              currentTab === 'studio'
+                ? 'bg-accent/15 text-accent font-semibold'
+                : 'text-foreground/80 hover:bg-white/5'
+            }`}
+          >
+            ✨ Product & Idea Studio
+          </button>
+
+          <button
             onClick={() => setCurrentTab('scoper')}
             className={`w-full text-left px-3 py-2 rounded-md text-xs font-medium flex items-center gap-2.5 transition-colors ${
               currentTab === 'scoper'
@@ -269,6 +281,7 @@ export function App() {
           <div className="flex items-center gap-3">
             <h1 className="text-sm font-bold text-foreground">
               {currentTab === 'board' && 'Milestone Delivery Board & Task DAG'}
+              {currentTab === 'studio' && 'Product Strategy Studio & Idea Council'}
               {currentTab === 'scoper' && 'Conversational Scoper & PRD Architect'}
               {currentTab === 'diff' && 'Unified Diff & Specialist Code Review'}
               {currentTab === 'preview' && 'Safe Local Web Preview & Dev Server'}
@@ -315,6 +328,15 @@ export function App() {
                 />
               </div>
             </div>
+          )}
+
+          {currentTab === 'studio' && (
+            <IdeaStudioView
+              onProjectInitialized={(project) => {
+                selectProject(project)
+                setCurrentTab('board')
+              }}
+            />
           )}
 
           {currentTab === 'scoper' && (

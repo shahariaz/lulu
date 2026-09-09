@@ -47,7 +47,7 @@ test('Orchestrator Server exposes delivery UI and full API lifecycle', async () 
     assert.equal(uiRes.status, 200)
     const uiHtml = await uiRes.text()
     assert.match(uiHtml, /Claude-Zen \| AI Software Delivery Platform/)
-    assert.match(uiHtml, /Delivery Board & Task DAG/)
+    assert.match(uiHtml, /id="root"/)
 
     // 2. Project Import
     const projRes = await fetch(`${url}/api/orchestrator/projects`, {

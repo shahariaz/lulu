@@ -39,7 +39,32 @@ function createTempGitRepo(prefix = 'zen-repo-api-') {
   return tmpDir
 }
 
+/**
+ * Serve the static UI from a fixture instead of the real dist/.
+ *
+ * dist/ is gitignored, so asserting against the built application made these tests pass only
+ * for someone who had run `npm run build:ui` and fail on every fresh clone and in CI. Pointing
+ * ZEN_STATIC_DIR at a fixture tests the static-serving and SPA-fallback logic itself, which is
+ * what these assertions are actually about, without depending on ambient build state.
+ */
+function useStaticFixture() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zen-static-fixture-'))
+  fs.writeFileSync(
+    path.join(dir, 'index.html'),
+    '<!doctype html><html><head><title>Claude-Zen | AI Software Delivery Platform</title></head>'
+    + '<body><div id="root"></div></body></html>',
+  )
+  const previous = process.env.ZEN_STATIC_DIR
+  process.env.ZEN_STATIC_DIR = dir
+  return () => {
+    if (previous === undefined) delete process.env.ZEN_STATIC_DIR
+    else process.env.ZEN_STATIC_DIR = previous
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+}
+
 test('Orchestrator Server exposes delivery UI and full API lifecycle', async () => {
+  const restoreStatic = useStaticFixture()
   const dbPath = getTempDbPath()
   const db = getOrchestratorDb(dbPath)
   const repo = createTempGitRepo()
@@ -230,6 +255,7 @@ test('Orchestrator Server exposes delivery UI and full API lifecycle', async () 
     // Verify main branch now contains the new file!
     assert.equal(fs.existsSync(path.join(repo, 'src', 'calc.js')), true)
   } finally {
+    restoreStatic()
     await serverInfo.close()
     closeOrchestratorDb()
     fs.rmSync(repo, { recursive: true, force: true })

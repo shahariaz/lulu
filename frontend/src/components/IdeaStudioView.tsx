@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react'
-import { ArrowRight, CheckCircle2, Database, ExternalLink, FileCheck2, FileText, Lightbulb, MessageSquareText, RefreshCw, Search, Send, Sparkles, Users } from 'lucide-react'
+import React, { useState, useCallback, useEffect } from 'react'
+import { ArrowRight, CheckCircle2, Database, ExternalLink, FileCheck2, FileText, Lightbulb, MessageSquareText, Plus, RefreshCw, Search, Send, Sparkles, Users } from 'lucide-react'
 import { api } from '../lib/api'
 import { Button } from './ui/Button'
 import { Card } from './ui/Card'
@@ -29,6 +29,24 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [studioProgress, setStudioProgress] = useState<string | null>(null)
+
+  // Restore active council session from localStorage if one exists
+  useEffect(() => {
+    const savedId = localStorage.getItem('zen_idea_studio_session_id')
+    if (savedId && !sessionId) {
+      api.getCouncil(savedId).then((data) => {
+        if (data.session) {
+          setSessionId(data.session.id)
+          setProjectName(data.session.projectName || '')
+          setMessages(data.session.messages || [])
+          if (data.session.marketResearch) setResearch(data.session.marketResearch)
+          if (data.session.blueprint) setBlueprint(data.session.blueprint)
+        }
+      }).catch(() => {
+        localStorage.removeItem('zen_idea_studio_session_id')
+      })
+    }
+  }, [])
 
   useOrchestratorEvents(useCallback((type: string, data: any) => {
     if (type === 'studio_progress' && (!data?.sessionId || data.sessionId === sessionId)) {
@@ -67,8 +85,26 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
 
   const start = () => run('Starting council', async () => {
     const data = await api.startCouncil({ projectName: projectName.trim(), ideaDescription: briefDescription, targetPersona: targetPersona.trim() || 'primary users' })
-    setSessionId(data.session.id); setMessages(data.session.messages); setResearch(null); setBlueprint(null)
+    setSessionId(data.session.id)
+    try { localStorage.setItem('zen_idea_studio_session_id', data.session.id) } catch {}
+    setMessages(data.session.messages)
+    setResearch(null)
+    setBlueprint(null)
   })
+
+  const startNewSession = () => {
+    try { localStorage.removeItem('zen_idea_studio_session_id') } catch {}
+    setSessionId(null)
+    setMessages([])
+    setResearch(null)
+    setBlueprint(null)
+    setProjectName('')
+    setIdeaDescription('')
+    setDesiredOutcome('')
+    setTargetPersona('')
+    setConstraints('')
+    setNonGoals('')
+  }
 
   const send = (text = prompt) => {
     if (!sessionId || !text.trim()) return
@@ -245,6 +281,15 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
               <div className="mt-0.5 text-xs text-zinc-500 truncate">{projectName}</div>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={startNewSession}
+                disabled={!!busy}
+                className="h-7 text-xs border-zinc-200 text-zinc-600 hover:text-zinc-900"
+              >
+                + New brief
+              </Button>
               <Button
                 variant="secondary"
                 size="sm"

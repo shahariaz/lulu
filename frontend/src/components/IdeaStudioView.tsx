@@ -871,6 +871,38 @@ export function IdeaStudioView({ project, onProjectInitialized }: IdeaStudioView
   )
 }
 
+/** Group lines into tree/diagram blocks or regular content lines */
+function groupContentBlocks(lines: string[]) {
+  const isTreeLine = (l: string) =>
+    /[├─│└┌┐┘┴┬┼]/.test(l) ||
+    (l.trim().endsWith('/') && !l.trim().includes(' ') && l.trim().length > 1)
+
+  const blocks: ({ type: 'tree'; lines: string[] } | { type: 'line'; line: string; lineIdx: number })[] = []
+  let currentTree: string[] | null = null
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const trimmed = line.trim()
+
+    if (isTreeLine(line) || (currentTree && trimmed === '' && i + 1 < lines.length && isTreeLine(lines[i + 1]))) {
+      if (!currentTree) currentTree = []
+      currentTree.push(line)
+    } else {
+      if (currentTree) {
+        blocks.push({ type: 'tree', lines: currentTree })
+        currentTree = null
+      }
+      blocks.push({ type: 'line', line, lineIdx: i })
+    }
+  }
+
+  if (currentTree) {
+    blocks.push({ type: 'tree', lines: currentTree })
+  }
+
+  return blocks
+}
+
 /**
  * Formatted Council message renderer that parses code blocks,
  * subheadings, bullet lists, bold text, numbered items, and LaTeX math into clean styled React components.
@@ -901,11 +933,35 @@ function FormattedCouncilMessage({ content }: { content: string }) {
         }
 
         const lines = part.split('\n')
+        const blocks = groupContentBlocks(lines)
+
         return (
           <div key={idx} className="space-y-1.5 min-w-0 max-w-full">
-            {lines.map((line, lineIdx) => {
+            {blocks.map((block, bIdx) => {
+              if (block.type === 'tree') {
+                return (
+                  <div key={bIdx} className="my-3 rounded-xl bg-zinc-900 border border-zinc-800 p-3.5 font-mono text-[11px] overflow-x-auto whitespace-pre leading-snug shadow-2xs max-w-full">
+                    {block.lines.map((tLine, tlIdx) => {
+                      const hashIdx = tLine.indexOf('#')
+                      if (hashIdx !== -1) {
+                        const pathPart = tLine.slice(0, hashIdx)
+                        const commentPart = tLine.slice(hashIdx)
+                        return (
+                          <div key={tlIdx}>
+                            <span className="text-zinc-100 font-medium">{pathPart}</span>
+                            <span className="text-zinc-400 font-normal">{commentPart}</span>
+                          </div>
+                        )
+                      }
+                      return <div key={tlIdx} className="text-zinc-100">{tLine}</div>
+                    })}
+                  </div>
+                )
+              }
+
+              const { line, lineIdx } = block
               const trimmed = line.trim()
-              if (!trimmed) return <div key={lineIdx} className="h-0.5" />
+              if (!trimmed) return <div key={bIdx} className="h-0.5" />
 
               // Horizontal dividers: --- or ***
               if (trimmed === '---' || trimmed === '***' || trimmed === '___') {

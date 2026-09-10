@@ -228,3 +228,138 @@ test('Specialist availability rule holds task in Code Review with SPECIALIST_UNA
 
   closeOrchestratorDb()
 })
+
+/**
+ * Fail-closed regression tests.
+ *
+ * These cover the paths where the reviewer does NOT produce a usable verdict. Previously every
+ * one of them synthesised `verdict: 'APPROVE'` with the summary "Automated verification passed
+ * and diff is compliant with task scope." — a fabricated approval of code no reviewer had seen.
+ * The Specialist Quota Rule says such a task must stay in Code Review, never advance to QA.
+ */
+
+/** Build a project + repo + worktree with one candidate commit, ready for review. */
+function setupReviewableTask(db, label) {
+  const repo = createTempGitRepo()
+  const project = createProject({ name: 'App', repoPath: repo }, db)
+  const baseline = createBaseline({ projectId: project.id, specMarkdown: 'spec', contentDigest: 'd', status: 'APPROVED' }, db)
+  const milestone = createMilestone({ baselineId: baseline.id, title: 'M1' }, db)
+  const task = createTask({ milestoneId: milestone.id, title: label, status: 'Code Review' }, db)
+
+  createFeatureBranch(repo, 'feature-failclosed')
+  const { worktreePath, baseCommitSha } = provisionTaskWorktree(repo, 'zen/feature-failclosed', task.id)
+
+  fs.writeFileSync(path.join(worktreePath, 'feature.js'), 'export const ready = true;\n')
+  runGit(worktreePath, ['add', 'feature.js'])
+  runGit(worktreePath, ['commit', '-m', 'feat: candidate commit'])
+  const candidateCommitSha = runGit(worktreePath, ['rev-parse', 'HEAD'])
+
+  const run = createTaskRun({ taskId: task.id, kind: 'REVIEW', role: 'REVIEWER' }, db)
+
+  return {
+    repo,
+    project,
+    task,
+    run,
+    reviewArgs: {
+      taskId: task.id,
+      projectId: project.id,
+      taskRunId: run.id,
+      worktreePath,
+      baseCommitSha,
+      candidateCommitSha,
+      verificationDigest: 'sha256:mockverifdigest',
+    },
+  }
+}
+
+test('a reviewer that throws holds the task instead of approving it', async () => {
+  const db = getOrchestratorDb(getTempDbPath())
+  const { repo, task, run, reviewArgs } = setupReviewableTask(db, 'Reviewer Throws Task')
+
+  const res = await runSpecialistReview({
+    ...reviewArgs,
+    reviewRunner: async () => { throw new Error('gateway exploded') },
+  }, db)
+
+  assert.equal(res.status, 'PENDING_SPECIALIST_UNAVAILABLE')
+  assert.match(res.reason, /gateway exploded/)
+
+  const updated = getTask(task.id, db)
+  assert.equal(updated.status, 'Code Review')
+  assert.equal(updated.waiting_reason, 'SPECIALIST_UNAVAILABLE')
+
+  // Nothing may be written to review_records — no review happened.
+  assert.equal(getReviewRecords(run.id, db).length, 0)
+
+  closeOrchestratorDb()
+  fs.rmSync(repo, { recursive: true, force: true })
+})
+
+test('a reviewer returning no verdict holds the task instead of approving it', async () => {
+  const db = getOrchestratorDb(getTempDbPath())
+  const { repo, task, run, reviewArgs } = setupReviewableTask(db, 'Reviewer Silent Task')
+
+  const res = await runSpecialistReview({
+    ...reviewArgs,
+    reviewRunner: async () => null,
+  }, db)
+
+  assert.equal(res.status, 'PENDING_SPECIALIST_UNAVAILABLE')
+  assert.equal(getTask(task.id, db).status, 'Code Review')
+  assert.equal(getReviewRecords(run.id, db).length, 0)
+
+  closeOrchestratorDb()
+  fs.rmSync(repo, { recursive: true, force: true })
+})
+
+test('an unrecognised verdict is treated as CHANGES_REQUESTED, never as APPROVE', async () => {
+  const db = getOrchestratorDb(getTempDbPath())
+  const { repo, task, run, reviewArgs } = setupReviewableTask(db, 'Unknown Verdict Task')
+
+  const result = await runSpecialistReview({
+    ...reviewArgs,
+    reviewRunner: async () => ({ verdict: 'REJECT', summary: 'Unsafe.', findings: [] }),
+  }, db)
+
+  assert.equal(result.reviewRecord.verdict, 'CHANGES_REQUESTED')
+  assert.notEqual(getTask(task.id, db).status, 'QA')
+  assert.equal(getReviewRecords(run.id, db)[0].verdict, 'CHANGES_REQUESTED')
+
+  closeOrchestratorDb()
+  fs.rmSync(repo, { recursive: true, force: true })
+})
+
+test('a verdict-less payload does not approve', async () => {
+  const db = getOrchestratorDb(getTempDbPath())
+  const { repo, task, reviewArgs } = setupReviewableTask(db, 'Missing Verdict Task')
+
+  const result = await runSpecialistReview({
+    ...reviewArgs,
+    reviewRunner: async () => ({ summary: 'I forgot the verdict field.', findings: [] }),
+  }, db)
+
+  assert.equal(result.reviewRecord.verdict, 'CHANGES_REQUESTED')
+  assert.notEqual(getTask(task.id, db).status, 'QA')
+
+  closeOrchestratorDb()
+  fs.rmSync(repo, { recursive: true, force: true })
+})
+
+test('an unreachable gateway holds the task instead of approving it', async () => {
+  const db = getOrchestratorDb(getTempDbPath())
+  const { repo, task, run, reviewArgs } = setupReviewableTask(db, 'Dead Gateway Task')
+
+  // No reviewRunner: exercise the real gateway path against a port nothing listens on.
+  const res = await runSpecialistReview({
+    ...reviewArgs,
+    modelConfig: { gatewayUrl: 'http://127.0.0.1:1' },
+  }, db)
+
+  assert.equal(res.status, 'PENDING_SPECIALIST_UNAVAILABLE')
+  assert.equal(getTask(task.id, db).status, 'Code Review')
+  assert.equal(getReviewRecords(run.id, db).length, 0)
+
+  closeOrchestratorDb()
+  fs.rmSync(repo, { recursive: true, force: true })
+})

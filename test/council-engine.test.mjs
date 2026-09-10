@@ -1,13 +1,60 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import {
   parseMentionTarget,
   startCouncilSession,
   executeCouncilTurn,
   generateCompetitorTeardown,
   synthesizeProductBlueprint,
+  researchMarket,
+  getCouncilSession,
   COUNCIL_PERSONAS,
 } from '../lib/orchestrator/council-engine.mjs'
+import { getOrchestratorDb, closeOrchestratorDb, createProject } from '../lib/orchestrator/db/index.mjs'
+
+function tempDb() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zen-council-engine-'))
+  return getOrchestratorDb(path.join(dir, 'test.sqlite'))
+}
+
+const TEST_RESEARCH = {
+  competitors: [{
+    name: 'AuditCo', url: 'https://audit.example', positioning: 'Compliance event storage',
+    pricing: 'Unknown', strengths: ['Retention controls'], weaknesses: ['No local mode'],
+  }],
+  marketSize: 'Unknown',
+  differentiators: ['Local verification'],
+  risks: ['Long enterprise sales cycle'],
+  sources: [{ title: 'AuditCo product', url: 'https://audit.example' }],
+}
+
+function blueprintFor(title = 'Audit trail') {
+  return {
+    market: {
+      coreValueProp: `${title} with verifiable local evidence`, targetAudience: 'Compliance engineers',
+      competitors: [{ name: 'AuditCo', positioning: 'Hosted audit logs', url: 'https://audit.example' }],
+      uniqueDifferentiators: ['Local custody'],
+    },
+    prd: {
+      executiveSummary: `Build ${title}`,
+      inScope: ['Append events'], outOfScope: ['SaaS billing'],
+      requirements: [{
+        id: 'REQ-F-01', title: `Deliver ${title}`, description: `Store one immutable ${title} event.`,
+        acceptanceCriteria: [`Given valid ${title} data, when it is appended, then it can be read by ID.`], priority: 'MUST',
+      }],
+    },
+    userJourneys: [{ persona: 'Auditor', goal: 'Inspect an event', steps: ['Open event', 'Verify digest'] }],
+    architecture: {
+      techStack: 'Node.js 24 + SQLite',
+      databaseSchema: { tables: [{ name: 'events', columns: ['id TEXT PRIMARY KEY'] }] },
+      apiContracts: [{ method: 'POST', path: '/events', purpose: 'Append event' }],
+    },
+    roadmap: { milestones: [{ title: 'Foundation', tasks: [{ title: 'Store events', description: 'Implement persistence' }] }] },
+  }
+}
 
 test('parseMentionTarget detects agent roles from text', () => {
   assert.equal(parseMentionTarget('@pm what are our top competitors?'), 'pm')
@@ -53,25 +100,67 @@ test('startCouncilSession and executeCouncilTurn support multi-persona advisory 
   assert.match(archTurn.reply.content, /subscribers/)
 
   // Total messages in session: 1 intro + 2 user + 2 assistant = 5
-  assert.equal(session.messages.length, 5)
+  assert.equal(archTurn.session.messages.length, 5)
 })
 
-test('generateCompetitorTeardown outputs structured market analysis', () => {
-  const teardown = generateCompetitorTeardown({
-    productIdea: 'Self-Hosted AI Code Delivery Platform',
-    industryCategory: 'Developer Infrastructure',
+test('council transcripts survive closing and reopening the database', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zen-council-restart-'))
+  const dbPath = path.join(dir, 'restart.sqlite')
+  let db = getOrchestratorDb(dbPath)
+  const session = startCouncilSession({ projectName: 'Restart Safe', ideaDescription: 'Durable product decisions' }, db)
+  await executeCouncilTurn({ sessionId: session.id, userMessage: '@pm preserve this decision', mockReply: 'Decision preserved.', db })
+  closeOrchestratorDb()
+
+  db = getOrchestratorDb(dbPath)
+  const restored = getCouncilSession(session.id, db)
+  assert.equal(restored.projectName, 'Restart Safe')
+  assert.equal(restored.messages.length, 3)
+  assert.equal(restored.messages.at(-1).content, 'Decision preserved.')
+  closeOrchestratorDb()
+})
+
+test('researchMarket returns structured sourced analysis and persists it', async () => {
+  const db = tempDb()
+  const session = startCouncilSession({ projectName: 'Audit Tool', ideaDescription: 'Local audit evidence' }, db)
+  const teardown = await researchMarket({
+    ideaTitle: 'Audit Tool',
+    ideaDescription: 'Local audit evidence',
+    sessionId: session.id,
+    db,
+    runner: async () => ({ exitCode: 0, stdout: JSON.stringify(TEST_RESEARCH), stderr: '' }),
   })
 
-  assert.equal(teardown.category, 'Developer Infrastructure')
-  assert.ok(teardown.competitors.length >= 2)
-  assert.ok(teardown.swotAnalysis.strengths.length > 0)
-  assert.ok(teardown.recommendation.length > 0)
+  assert.equal(teardown.competitors[0].name, 'AuditCo')
+  assert.equal(teardown.sources[0].url, 'https://audit.example')
+  assert.deepEqual(getCouncilSession(session.id, db).marketResearch, TEST_RESEARCH)
+  closeOrchestratorDb()
 })
 
-test('synthesizeProductBlueprint generates complete 5-part enterprise specification', () => {
-  const blueprint = synthesizeProductBlueprint({
+test('generateCompetitorTeardown is a fail-closed compatibility wrapper', async () => {
+  const teardown = await generateCompetitorTeardown({
+    productIdea: 'Self-Hosted AI Code Delivery Platform',
+    runner: async () => ({ exitCode: 0, stdout: JSON.stringify(TEST_RESEARCH), stderr: '' }),
+  })
+
+  assert.equal(teardown.competitors[0].name, 'AuditCo')
+})
+
+test('synthesizeProductBlueprint consumes the idea, transcript, and research', async () => {
+  const db = tempDb()
+  const session = startCouncilSession({
+    projectName: 'Enterprise Audit Log Engine',
+    ideaDescription: 'High-throughput immutable audit trail for compliance.',
+  }, db)
+  await researchMarket({
+    ideaTitle: 'Enterprise Audit Log Engine', ideaDescription: 'Immutable compliance trail', sessionId: session.id, db,
+    runner: async () => ({ exitCode: 0, stdout: JSON.stringify(TEST_RESEARCH), stderr: '' }),
+  })
+  const blueprint = await synthesizeProductBlueprint({
+    sessionId: session.id,
     ideaTitle: 'Enterprise Audit Log Engine',
     ideaDescription: 'High-throughput immutable audit trail for compliance.',
+    mockBlueprint: blueprintFor('immutable audit trail'),
+    db,
   })
 
   assert.equal(blueprint.title, 'Enterprise Audit Log Engine')
@@ -79,22 +168,110 @@ test('synthesizeProductBlueprint generates complete 5-part enterprise specificat
 
   // Part 1: Market
   assert.ok(blueprint.market.targetAudience)
-  assert.ok(blueprint.market.competitors.length >= 2)
-  assert.ok(blueprint.market.uniqueDifferentiators.length >= 2)
+  assert.ok(blueprint.market.competitors.length >= 1)
+  assert.ok(blueprint.market.uniqueDifferentiators.length >= 1)
 
   // Part 2: PRD
-  assert.ok(blueprint.prd.requirements.length >= 4)
+  assert.ok(blueprint.prd.requirements.length >= 1)
   assert.equal(blueprint.prd.requirements[0].id, 'REQ-F-01')
 
   // Part 3: User Journeys
-  assert.ok(blueprint.userJourneys.length >= 2)
+  assert.ok(blueprint.userJourneys.length >= 1)
   assert.ok(blueprint.userJourneys[0].steps.length >= 2)
 
   // Part 4: Architecture & DB ERD
-  assert.ok(blueprint.architecture.databaseSchema.tables.length >= 2)
-  assert.ok(blueprint.architecture.apiContracts.length >= 2)
+  assert.ok(blueprint.architecture.databaseSchema.tables.length >= 1)
+  assert.ok(blueprint.architecture.apiContracts.length >= 1)
 
   // Part 5: Roadmap
-  assert.ok(blueprint.roadmap.milestones.length >= 2)
-  assert.ok(blueprint.roadmap.milestones[0].tasks.length >= 2)
+  assert.ok(blueprint.roadmap.milestones.length >= 1)
+  assert.equal(getCouncilSession(session.id, db).blueprint.prd.requirements[0].id, 'REQ-F-01')
+  closeOrchestratorDb()
+})
+
+test('different ideas produce materially different model blueprints', async () => {
+  const make = (title) => synthesizeProductBlueprint({
+    ideaTitle: title,
+    ideaDescription: `A product for ${title}`,
+    transcript: [{ role: 'user', content: title }],
+    marketResearch: TEST_RESEARCH,
+    gatewayRunner: async ({ messages }) => ({ text: JSON.stringify(blueprintFor(messages[0].content.includes('Weather') ? 'weather routing' : 'music licensing')) }),
+  })
+  const weather = await make('Weather Router')
+  const music = await make('Music Rights Ledger')
+  assert.notDeepEqual(weather.prd.requirements, music.prd.requirements)
+  assert.notEqual(weather.market.coreValueProp, music.market.coreValueProp)
+})
+
+test('researchMarket surfaces a typed dependency error when Wigolo is unavailable', async () => {
+  await assert.rejects(
+    () => researchMarket({ ideaTitle: 'Novel product', ideaDescription: 'Specific market', runner: async () => { throw new Error('ENOENT') } }),
+    (err) => err.code === 'E_GATEWAY_UNAVAILABLE',
+  )
+})
+
+/**
+ * Fail-closed regression tests for the advisory engines.
+ *
+ * Both the Council and the Architect used to answer with hardcoded paragraphs when the gateway
+ * was unreachable — per-role "strategy analysis" that read like considered advice but was
+ * written into the source, ignored the user's actual idea, and was indistinguishable in the UI
+ * from a real reply. An advisor that cannot be reached must fail loudly.
+ */
+
+test('executeCouncilTurn throws instead of inventing advice when the gateway is down', async () => {
+  const session = startCouncilSession({
+    projectName: 'Test Product',
+    ideaDescription: 'A tool for something specific and unusual.',
+  })
+
+  // The session opens with a fixed welcome message (UI chrome, not analysis). Baseline against
+  // it so we detect a fabricated *reply*, not the greeting.
+  const assistantCountBefore = session.messages.filter((m) => m.role === 'assistant').length
+
+  await assert.rejects(
+    () => executeCouncilTurn({
+      sessionId: session.id,
+      userMessage: '@pm who are our competitors?',
+      gatewayUrl: 'http://127.0.0.1:1', // nothing listens here
+    }),
+    (err) => {
+      assert.equal(err.code, 'E_GATEWAY_UNAVAILABLE')
+      return true
+    },
+  )
+
+  const assistantCountAfter = session.messages.filter((m) => m.role === 'assistant').length
+  assert.equal(
+    assistantCountAfter,
+    assistantCountBefore,
+    'no advisory reply may be recorded when the gateway failed',
+  )
+})
+
+test('generateArchitectReply throws instead of appending canned text when the gateway is down', async () => {
+  const { startSpecConversation, generateArchitectReply, getSpecConversation } =
+    await import('../lib/orchestrator/spec-engine.mjs')
+
+  const db = tempDb()
+  const project = createProject({ name: 'Spec test', repoPath: '/tmp/spec-test' }, db)
+  const convo = startSpecConversation({
+    projectId: project.id,
+    featureTitle: 'Some Feature',
+    initialPrompt: 'Build me a thing.',
+  }, db)
+
+  const before = getSpecConversation(convo.id, db).messages.length
+
+  await assert.rejects(
+    () => generateArchitectReply(convo.id, { gatewayUrl: 'http://127.0.0.1:1', db }),
+    (err) => {
+      assert.equal(err.code, 'E_GATEWAY_UNAVAILABLE')
+      return true
+    },
+  )
+
+  // Transcript untouched — nothing fabricated entered the specification conversation.
+  assert.equal(getSpecConversation(convo.id, db).messages.length, before)
+  closeOrchestratorDb()
 })

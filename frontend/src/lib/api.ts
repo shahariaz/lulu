@@ -25,6 +25,7 @@ export const api = {
 
   startCouncil: (params: { projectName: string; ideaDescription: string; targetPersona?: string }) => request<any>('/api/orchestrator/council/start', { method: 'POST', body: json(params) }),
   getCouncil: (id: string) => request<any>(`/api/orchestrator/council/${id}`),
+  getProjectCouncil: (projectId: string) => request<{ session: any; personas?: any }>(`/api/orchestrator/projects/${projectId}/council`),
   councilTurn: (sessionId: string, userMessage: string, forcedRole?: string) => request<any>('/api/orchestrator/council/turn', { method: 'POST', body: json({ sessionId, userMessage, forcedRole }) }),
   conveneDebate: (sessionId: string, userPrompt?: string) => request<any>('/api/orchestrator/council/debate', { method: 'POST', body: json({ sessionId, userPrompt }) }),
   researchMarket: (params: { sessionId: string; productIdea: string; ideaDescription: string; depth?: string }) => request<any>('/api/orchestrator/council/teardown', { method: 'POST', body: json(params) }),

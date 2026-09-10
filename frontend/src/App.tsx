@@ -422,6 +422,7 @@ export function App() {
 
           {currentTab === 'studio' && (
             <IdeaStudioView
+              project={activeProject}
               onProjectInitialized={(project) => {
                 selectProject(project)
                 setCurrentTab('board')

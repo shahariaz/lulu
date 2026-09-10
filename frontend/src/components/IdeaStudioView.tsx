@@ -5,14 +5,16 @@ import { Button } from './ui/Button'
 import { Card } from './ui/Card'
 import { Input } from './ui/Input'
 import { useOrchestratorEvents } from '../hooks/useOrchestratorEvents'
+import type { Project } from '../types'
 
 interface IdeaStudioViewProps {
+  project?: Project | null
   onProjectInitialized: (project: any) => void
 }
 
 type BlueprintTab = 'market' | 'prd' | 'journeys' | 'architecture' | 'roadmap'
 
-export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
+export function IdeaStudioView({ project, onProjectInitialized }: IdeaStudioViewProps) {
   const [projectName, setProjectName] = useState('')
   const [ideaDescription, setIdeaDescription] = useState('')
   const [targetPersona, setTargetPersona] = useState('')
@@ -30,8 +32,21 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
   const [error, setError] = useState<string | null>(null)
   const [studioProgress, setStudioProgress] = useState<string | null>(null)
 
-  // Restore active council session from localStorage if one exists
+  // Restore active council session for the selected project or from localStorage
   useEffect(() => {
+    if (project?.id) {
+      api.getProjectCouncil(project.id).then((data) => {
+        if (data.session) {
+          setSessionId(data.session.id)
+          setProjectName(data.session.projectName || project.name || '')
+          setMessages(data.session.messages || [])
+          if (data.session.marketResearch) setResearch(data.session.marketResearch)
+          if (data.session.blueprint) setBlueprint(data.session.blueprint)
+          return
+        }
+      }).catch(() => {})
+    }
+
     const savedId = localStorage.getItem('zen_idea_studio_session_id')
     if (savedId && !sessionId) {
       api.getCouncil(savedId).then((data) => {
@@ -46,7 +61,7 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
         localStorage.removeItem('zen_idea_studio_session_id')
       })
     }
-  }, [])
+  }, [project?.id])
 
   useOrchestratorEvents(useCallback((type: string, data: any) => {
     if (type === 'studio_progress' && (!data?.sessionId || data.sessionId === sessionId)) {

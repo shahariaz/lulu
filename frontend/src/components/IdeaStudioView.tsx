@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react'
-import { ArrowRight, CheckCircle2, ExternalLink, FileCheck2, FileText, Lightbulb, MessageSquareText, RefreshCw, Search, Send, Users } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Database, ExternalLink, FileCheck2, FileText, Lightbulb, MessageSquareText, RefreshCw, Search, Send, Sparkles, Users } from 'lucide-react'
 import { api } from '../lib/api'
 import { Button } from './ui/Button'
 import { Card } from './ui/Card'
@@ -37,6 +37,19 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
     if (type === 'project_initialized_from_blueprint') {
       setStudioProgress(null)
     }
+    if (type === 'studio_research_ready' && (!data?.sessionId || data.sessionId === sessionId)) {
+      if (data.teardown) {
+        setResearch(data.teardown)
+      }
+    }
+    if (type === 'council_debate_turn' && (!data?.sessionId || data.sessionId === sessionId)) {
+      if (data.reply) {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === data.reply.id)) return prev
+          return [...prev, data.reply]
+        })
+      }
+    }
   }, [sessionId]))
 
   const briefDescription = [
@@ -66,6 +79,11 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
     })
   }
 
+  const conveneDebate = () => sessionId && run('Council debate in progress...', async () => {
+    const data = await api.conveneDebate(sessionId)
+    setMessages(data.session.messages)
+  })
+
   const researchMarket = () => sessionId && run('Researching market', async () => {
     const data = await api.researchMarket({ sessionId, productIdea: projectName, ideaDescription: briefDescription, depth: 'standard' })
     setResearch(data.teardown)
@@ -75,6 +93,22 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
     const data = await api.synthesizeBlueprint({ sessionId, ideaTitle: projectName, ideaDescription: briefDescription, marketResearch: research })
     setBlueprint(data.blueprint); setTab('market')
   })
+
+  const toggleRequirementPriority = (reqId: string) => {
+    if (!blueprint?.prd?.requirements) return
+    const priorities = ['MUST', 'SHOULD', 'COULD']
+    setBlueprint({
+      ...blueprint,
+      prd: {
+        ...blueprint.prd,
+        requirements: blueprint.prd.requirements.map((r: any) => {
+          if (r.id !== reqId) return r
+          const nextIdx = (priorities.indexOf(r.priority) + 1) % priorities.length
+          return { ...r, priority: priorities[nextIdx] }
+        }),
+      },
+    })
+  }
 
   const initialize = () => sessionId && blueprint && run('Creating delivery plan', async () => {
     setStudioProgress('Initializing delivery workspace...')
@@ -203,16 +237,37 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
         <JourneyItem icon={FileText} label="04. Blueprint" state={studioStage === 4 ? 'active' : 'next'} />
         <JourneyItem icon={FileCheck2} label="05. Delivery plan" state="next" last />
       </div>
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(320px,0.85fr)_minmax(520px,1.35fr)]">
+      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(340px,0.88fr)_minmax(520px,1.35fr)]">
         <Card className="flex min-h-[520px] flex-col overflow-hidden xl:min-h-0 border border-zinc-200 bg-white rounded-xl shadow-2xs">
           <div className="flex items-center justify-between border-b border-zinc-100 p-4 bg-white">
             <div>
               <div className="text-xs font-semibold text-zinc-900">Council room</div>
               <div className="mt-0.5 text-xs text-zinc-500 truncate">{projectName}</div>
             </div>
-            <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-0.5 text-[10px] font-medium text-zinc-600">
-              Transcript saved
-            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={conveneDebate}
+                disabled={!!busy}
+                className="h-7 text-xs border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-zinc-800"
+              >
+                {busy === 'Council debate in progress...' ? (
+                  <>
+                    <RefreshCw className="h-3 w-3 animate-spin mr-1 text-[#ea3a12]" />
+                    Debating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-3 w-3 mr-1 text-[#ea3a12]" />
+                    Convene debate
+                  </>
+                )}
+              </Button>
+              <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-0.5 text-[10px] font-medium text-zinc-600">
+                Saved
+              </span>
+            </div>
           </div>
           <div className="flex-1 space-y-3 overflow-y-auto p-4 bg-zinc-50/40 swiss-dots">
             {messages.map((message: any) => (
@@ -259,9 +314,31 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
 
         <div className="flex min-h-[520px] flex-col gap-3 xl:min-h-0">
           <div className="grid grid-cols-3 gap-2">
-            <Stage n="01" title="Research" done={!!research} active={busy === 'Researching market'} onClick={researchMarket} disabled={!!busy} />
-            <Stage n="02" title="Blueprint" done={!!blueprint} active={busy === 'Synthesizing blueprint'} onClick={synthesize} disabled={!!busy || !research} />
-            <Stage n="03" title="Initialize" done={false} active={busy === 'Creating delivery plan'} onClick={() => {}} disabled />
+            <Stage
+              n="01"
+              title="Research"
+              done={!!research}
+              active={busy === 'Researching market'}
+              onClick={researchMarket}
+              disabled={!!busy}
+              badge={research ? 'Cached ✓' : null}
+            />
+            <Stage
+              n="02"
+              title="Blueprint"
+              done={!!blueprint}
+              active={busy === 'Synthesizing blueprint'}
+              onClick={synthesize}
+              disabled={!!busy || !research}
+            />
+            <Stage
+              n="03"
+              title="Initialize"
+              done={false}
+              active={busy === 'Creating delivery plan'}
+              onClick={() => {}}
+              disabled
+            />
           </div>
           {error && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700">{error}</div>}
           <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white rounded-xl shadow-2xs">
@@ -271,12 +348,12 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
                   E
                 </div>
                 <h2 className="text-sm font-semibold text-zinc-900">
-                  {research ? 'Empirical evidence ready' : 'Gather evidence before defining blueprint'}
+                  {research ? 'Empirical evidence ready to review' : 'Gather evidence before defining blueprint'}
                 </h2>
                 <p className="mt-1.5 max-w-md text-xs text-zinc-500 leading-relaxed">
                   {research
                     ? `${research.sources?.length || 0} sources and ${research.competitors?.length || 0} competitors cataloged. Synthesis will compile this into specification items.`
-                    : 'Market research is local-first, verifiable, and fails closed when evidence is insufficient.'}
+                    : 'Market research runs in the background or on-demand to source facts without hallucinations.'}
                 </p>
                 {research ? (
                   <Button className="mt-4" onClick={synthesize} disabled={!!busy}>
@@ -304,7 +381,12 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
                   ))}
                 </div>
                 <div className="flex-1 overflow-y-auto p-5 bg-white">
-                  <BlueprintPanel tab={tab} blueprint={blueprint} research={research} />
+                  <BlueprintPanel
+                    tab={tab}
+                    blueprint={blueprint}
+                    research={research}
+                    onTogglePriority={toggleRequirementPriority}
+                  />
                 </div>
                 <div className="border-t border-zinc-100 bg-zinc-50 p-4">
                   <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
@@ -405,7 +487,7 @@ function JourneyItem({ icon: Icon, label, state, last = false }: any) {
   )
 }
 
-function Stage({ n, title, done, active, onClick, disabled }: any) {
+function Stage({ n, title, done, active, onClick, disabled, badge = null }: any) {
   return (
     <button
       onClick={onClick}
@@ -418,17 +500,24 @@ function Stage({ n, title, done, active, onClick, disabled }: any) {
           : 'bg-white text-zinc-800 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300 shadow-2xs'
       } disabled:cursor-not-allowed disabled:opacity-40`}
     >
-      <div className="flex items-center gap-2">
-        <span className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-800 text-[10px] font-bold font-mono">
-          {done ? '✓' : n}
-        </span>
-        <span className="text-xs font-medium">{active ? `${title}…` : title}</span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-800 text-[10px] font-bold font-mono">
+            {done ? '✓' : n}
+          </span>
+          <span className="text-xs font-medium">{active ? `${title}…` : title}</span>
+        </div>
+        {badge && (
+          <span className="text-[9px] font-medium text-emerald-400 bg-zinc-800 px-1.5 py-0.5 rounded-full">
+            {badge}
+          </span>
+        )}
       </div>
     </button>
   )
 }
 
-function BlueprintPanel({ tab, blueprint, research }: any) {
+function BlueprintPanel({ tab, blueprint, research, onTogglePriority }: any) {
   if (tab === 'market') return (
     <div className="space-y-4">
       <Section title="Value proposition">
@@ -464,9 +553,28 @@ function BlueprintPanel({ tab, blueprint, research }: any) {
       <Section title="Executive summary">
         <p className="text-zinc-700 leading-relaxed">{blueprint.prd.executiveSummary}</p>
       </Section>
+      <div className="flex items-center justify-between text-xs text-zinc-500 pt-1">
+        <span>Click priority pill (MUST / SHOULD / COULD) to toggle MoSCoW allocation</span>
+        <span>{blueprint.prd.requirements.length} requirements</span>
+      </div>
       {blueprint.prd.requirements.map((x: any) => (
         <Section key={x.id} title={`${x.id} · ${x.title}`}>
-          <p className="text-zinc-600 leading-relaxed">{x.description}</p>
+          <div className="flex items-center gap-2 mb-2">
+            <button
+              onClick={() => onTogglePriority && onTogglePriority(x.id)}
+              title="Click to toggle priority"
+              className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-colors cursor-pointer border ${
+                x.priority === 'MUST'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                  : x.priority === 'SHOULD'
+                  ? 'bg-sky-50 text-sky-800 border-sky-300'
+                  : 'bg-amber-50 text-amber-800 border-amber-300'
+              }`}
+            >
+              {x.priority} ⟳
+            </button>
+            <span className="text-xs text-zinc-600">{x.description}</span>
+          </div>
           <div className="mt-3 space-y-1.5 border-t border-zinc-100 pt-2">
             <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Acceptance criteria</span>
             {x.acceptanceCriteria.map((c: string) => (
@@ -499,15 +607,65 @@ function BlueprintPanel({ tab, blueprint, research }: any) {
   )
 
   if (tab === 'architecture') return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <Section title="System architecture & runtime">
         <p className="font-mono text-xs text-zinc-800 font-medium">{blueprint.architecture.techStack}</p>
       </Section>
-      {blueprint.architecture.apiContracts.map((x: any) => (
-        <Section key={`${x.method}-${x.path}`} title={`${x.method} ${x.path}`}>
-          <p className="text-zinc-600 text-xs">{x.purpose}</p>
-        </Section>
-      ))}
+
+      {/* Relational Database Schema Visualizer */}
+      {blueprint.architecture?.databaseSchema?.tables && (
+        <div className="space-y-2.5">
+          <div className="flex items-center gap-2 text-xs font-semibold text-zinc-900">
+            <Database size={14} className="text-[#ea3a12]" />
+            <span>Relational database schema</span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {blueprint.architecture.databaseSchema.tables.map((table: any) => (
+              <div key={table.name} className="rounded-xl border border-zinc-200/80 bg-white p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-100">
+                  <span className="font-mono text-xs font-bold text-zinc-900">{table.name}</span>
+                  <span className="text-[10px] font-mono text-zinc-400">{table.columns?.length || 0} cols</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {table.columns?.map((col: string) => (
+                    <span key={col} className="font-mono text-[10px] px-2 py-0.5 rounded-md bg-zinc-50 border border-zinc-200/90 text-zinc-700">
+                      {col}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* API Contracts Visualizer */}
+      {blueprint.architecture?.apiContracts && (
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between text-xs font-semibold text-zinc-900">
+            <span>API contracts</span>
+            <span className="text-[10px] font-mono text-zinc-400">{blueprint.architecture.apiContracts.length} endpoints</span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {blueprint.architecture.apiContracts.map((api: any) => (
+              <div key={`${api.method}-${api.path}`} className="flex items-center justify-between p-3 rounded-lg border border-zinc-200/80 bg-white text-xs shadow-2xs">
+                <div className="flex items-center gap-2.5 font-mono">
+                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                    api.method === 'GET' ? 'bg-sky-50 text-sky-700 border border-sky-200' :
+                    api.method === 'POST' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                    api.method === 'PUT' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                    'bg-rose-50 text-rose-700 border border-rose-200'
+                  }`}>
+                    {api.method}
+                  </span>
+                  <span className="font-semibold text-zinc-900">{api.path}</span>
+                </div>
+                <span className="text-zinc-500 text-[11px] max-w-sm truncate">{api.purpose}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 

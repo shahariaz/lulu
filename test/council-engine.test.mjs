@@ -7,6 +7,7 @@ import {
   parseMentionTarget,
   startCouncilSession,
   executeCouncilTurn,
+  executeCouncilDebate,
   generateCompetitorTeardown,
   synthesizeProductBlueprint,
   researchMarket,
@@ -116,6 +117,43 @@ test('council transcripts survive closing and reopening the database', async () 
   assert.equal(restored.projectName, 'Restart Safe')
   assert.equal(restored.messages.length, 3)
   assert.equal(restored.messages.at(-1).content, 'Decision preserved.')
+  closeOrchestratorDb()
+})
+
+test('executeCouncilDebate sequences all 4 specialists and invokes onTurn callbacks', async () => {
+  const db = tempDb()
+  const session = startCouncilSession({ projectName: 'Debate Test App', ideaDescription: 'Fast local search' }, db)
+
+  const turnsSeen = []
+  const result = await executeCouncilDebate({
+    sessionId: session.id,
+    userPrompt: 'Review our fast local search concept',
+    mockReplies: {
+      pm: 'PM: Market size is strong, focus on local latency as key differentiator.',
+      architect: 'Architect: Use SQLite full-text search with BM25 ranking.',
+      designer: 'Designer: Single omnibox search input with instant keyboard navigation.',
+      pjm: 'PjM: Milestone 1 bounds ingestion and indexing; query UI is Milestone 2.',
+    },
+    onTurn: (role, turnResult) => {
+      turnsSeen.push({ role, title: turnResult.reply.agent.title })
+    },
+    db,
+  })
+
+  assert.equal(result.turns.length, 4)
+  assert.equal(turnsSeen.length, 4)
+  assert.equal(turnsSeen[0].role, 'pm')
+  assert.equal(turnsSeen[1].role, 'architect')
+  assert.equal(turnsSeen[2].role, 'designer')
+  assert.equal(turnsSeen[3].role, 'pjm')
+
+  // Total messages in session: 1 intro + 4 user prompts + 4 assistant replies = 9 messages
+  assert.equal(result.session.messages.length, 9)
+  assert.match(result.session.messages[2].content, /PM: Market size/)
+  assert.match(result.session.messages[4].content, /Architect: Use SQLite/)
+  assert.match(result.session.messages[6].content, /Designer: Single omnibox/)
+  assert.match(result.session.messages[8].content, /PjM: Milestone 1/)
+
   closeOrchestratorDb()
 })
 

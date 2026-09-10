@@ -26,6 +26,7 @@ export const api = {
   startCouncil: (params: { projectName: string; ideaDescription: string; targetPersona?: string }) => request<any>('/api/orchestrator/council/start', { method: 'POST', body: json(params) }),
   getCouncil: (id: string) => request<any>(`/api/orchestrator/council/${id}`),
   councilTurn: (sessionId: string, userMessage: string, forcedRole?: string) => request<any>('/api/orchestrator/council/turn', { method: 'POST', body: json({ sessionId, userMessage, forcedRole }) }),
+  conveneDebate: (sessionId: string, userPrompt?: string) => request<any>('/api/orchestrator/council/debate', { method: 'POST', body: json({ sessionId, userPrompt }) }),
   researchMarket: (params: { sessionId: string; productIdea: string; ideaDescription: string; depth?: string }) => request<any>('/api/orchestrator/council/teardown', { method: 'POST', body: json(params) }),
   synthesizeBlueprint: (params: { sessionId: string; ideaTitle: string; ideaDescription: string; marketResearch?: unknown }) => request<any>('/api/orchestrator/council/blueprint', { method: 'POST', body: json(params) }),
   initializeProject: (params: { sessionId: string; repoPath: string; projectName: string; blueprint: unknown; marketResearch?: unknown }) => request<any>('/api/orchestrator/council/initialize-project', { method: 'POST', body: json(params) }),

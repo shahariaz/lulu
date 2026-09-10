@@ -260,6 +260,7 @@ server.listen(process.env.PORT, '127.0.0.1');
       command: 'node',
       args: ['preview-server.mjs'],
       timeoutMs: 5000,
+      tier: 'host',
     })
 
     assert.equal(previewSession.status, 'RUNNING')

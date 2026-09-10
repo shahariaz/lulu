@@ -7,6 +7,12 @@ import { execFileSync } from 'node:child_process'
 import { startOrchestratorServer } from '../lib/orchestrator/api.mjs'
 import { getOrchestratorDb, closeOrchestratorDb } from '../lib/orchestrator/db/index.mjs'
 
+// This suite drives the HTTP API with caller-supplied mock model output. That is refused by
+// default (see lib/orchestrator/http/shared.mjs — a request must never be able to fabricate
+// content indistinguishable from real model output). Opt in explicitly for these tests only;
+// test/mock-injection-gate.test.mjs asserts the default stays OFF.
+process.env.ZEN_ALLOW_MOCK_INJECTION = '1'
+
 function getTempDbPath() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zen-fe-test-'))
   return path.join(tmpDir, 'test-frontend.sqlite')

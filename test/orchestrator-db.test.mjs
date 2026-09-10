@@ -58,16 +58,18 @@ test('Migration runner initializes schema idempotently', () => {
 
   // Verify schema_migrations table
   const applied = getAppliedMigrations(db)
-  assert.equal(applied.length, 2)
+  assert.equal(applied.length, 5)
   assert.equal(applied[0].version, 1)
   assert.equal(applied[0].name, 'initial_schema')
   assert.equal(applied[1].version, 2)
   assert.equal(applied[1].name, 'epics_and_sprints')
+  assert.equal(applied[4].version, 5)
+  assert.equal(applied[4].name, 'autonomy')
 
   // Second run (idempotent - no new migrations applied)
   const result2 = runMigrations(db)
   assert.equal(result2.applied.length, 0)
-  assert.equal(result2.totalApplied, 2)
+  assert.equal(result2.totalApplied, 5)
 
   db.close()
 })
@@ -402,4 +404,41 @@ test('Non-destructive recovery preserves dirty worktrees and reconciles transien
   // Clean up test worktree
   fs.rmSync(tmpWorktreeDir, { recursive: true, force: true })
   closeOrchestratorDb()
+})
+
+test('startOrchestratorServer runs crash recovery before accepting connections', async () => {
+  const { startOrchestratorServer } = await import('../lib/orchestrator/api.mjs')
+  const { getTaskRun } = await import('../lib/orchestrator/db/index.mjs')
+
+  const dbPath = getTempDbPath()
+  const db = getOrchestratorDb(dbPath)
+
+  const project = createProject({ name: 'Boot Recovery', repoPath: '/tmp/boot-repo' }, db)
+  const baseline = createBaseline({ projectId: project.id, specMarkdown: 'spec', contentDigest: 'd', status: 'APPROVED' }, db)
+  const milestone = createMilestone({ baselineId: baseline.id, title: 'M1' }, db)
+  const task = createTask({ milestoneId: milestone.id, title: 'Wedged Task', status: 'In Progress' }, db)
+
+  // A run left RUNNING by a process that no longer exists — exactly what a crash leaves behind.
+  const run = createTaskRun({
+    taskId: task.id,
+    kind: 'WORKER',
+    role: 'WORKER',
+    processPid: 99999999,
+    processCmdline: 'node worker.mjs',
+  }, db)
+  assert.equal(getTaskRun(run.id, db).status, 'RUNNING')
+
+  const instance = await startOrchestratorServer({ port: 0, db })
+  try {
+    // Without this wiring the run stays RUNNING forever and the board shows phantom work.
+    assert.equal(getTaskRun(run.id, db).status, 'INTERRUPTED')
+    assert.ok(instance.recovery, 'startup should report a recovery summary')
+    assert.ok(instance.recovery.reconciledRuns >= 1)
+
+    // No worktree on disk, so the task is returned to Ready rather than quarantined.
+    assert.equal(getTask(task.id, db).status, 'Ready')
+  } finally {
+    await instance.close()
+    closeOrchestratorDb()
+  }
 })

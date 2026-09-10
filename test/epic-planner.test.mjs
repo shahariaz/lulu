@@ -15,6 +15,7 @@ import {
 } from '../lib/orchestrator/db/index.mjs'
 import {
   decomposeBaselineHierarchical,
+  decomposePRDViaLLM,
   getEpicProgress,
   assignTasksToSprint,
   HIERARCHICAL_DECOMPOSITION_PROMPT,
@@ -193,5 +194,59 @@ test('assignTasksToSprint links tasks to sprint cleanly', () => {
   assert.equal(tX.sprint_id, sprint.id)
   assert.equal(tY.sprint_id, sprint.id)
 
+  closeOrchestratorDb()
+})
+
+test('decomposePRDViaLLM preserves real requirements and feature acceptance criteria', async () => {
+  const db = getOrchestratorDb(getTempDbPath())
+  const project = createProject({ name: 'Structured Plan', repoPath: '/tmp/structured-plan' }, db)
+  const baseline = createBaseline({
+    projectId: project.id,
+    specMarkdown: '# PRD\n### REQ-F-01 Event ingestion\nAccept valid events.\n### REQ-NF-01 Isolation\nRun checks without egress.',
+    contentDigest: 'sha256:structured', status: 'APPROVED',
+  }, db)
+  const candidate = {
+    milestoneTitle: 'Evidence foundation',
+    epics: [{ tempId: 'epic_1', title: 'Evidence', features: [{
+      tempId: 'feature_1', title: 'Safe ingestion', description: 'Ingest isolated evidence',
+      acceptanceCriteria: ['Given a valid event, when submitted, then it is stored.'],
+      linkedRequirementIds: ['REQ-F-01', 'REQ-NF-01'],
+      tasks: [{
+        tempId: 'task_1', title: 'Implement ingestion', description: 'Create the bounded handler',
+        scopePaths: ['src/events.mjs'],
+        acceptanceCriteria: ['Given valid input, when handled, then a durable ID is returned.'],
+        linkedRequirementIds: ['REQ-F-01'], blockedBy: [],
+      }],
+    }]}],
+  }
+
+  const plan = await decomposePRDViaLLM({ baselineId: baseline.id, mockDecomposition: candidate, db })
+  const result = decomposeBaselineHierarchical({
+    baselineId: baseline.id, projectId: project.id,
+    milestoneTitle: plan.milestoneTitle, epicsWithTasks: plan.epics,
+  }, db)
+  assert.equal(result.features.length, 1)
+  assert.deepEqual(result.features[0].linked_requirement_ids, ['REQ-F-01', 'REQ-NF-01'])
+  assert.deepEqual(result.tasks[0].acceptance_criteria, candidate.epics[0].features[0].tasks[0].acceptanceCriteria)
+  assert.equal(result.tasks[0].feature_id, result.features[0].id)
+  closeOrchestratorDb()
+})
+
+test('decomposePRDViaLLM fails closed on invented requirement IDs', async () => {
+  const db = getOrchestratorDb(getTempDbPath())
+  const project = createProject({ name: 'Strict Plan', repoPath: '/tmp/strict-plan' }, db)
+  const baseline = createBaseline({
+    projectId: project.id, specMarkdown: '# PRD\n### REQ-F-01 Real requirement\nDo the real work.',
+    contentDigest: 'sha256:strict', status: 'APPROVED',
+  }, db)
+  await assert.rejects(() => decomposePRDViaLLM({
+    baselineId: baseline.id,
+    mockDecomposition: {
+      epics: [{ title: 'Epic', features: [{
+        title: 'Feature', acceptanceCriteria: ['It works'], linkedRequirementIds: ['REQ-F-99'],
+        tasks: [{ tempId: 'task_1', title: 'Task', scopePaths: ['src/x.mjs'], acceptanceCriteria: ['It passes'], linkedRequirementIds: ['REQ-F-99'], blockedBy: [] }],
+      }]}],
+    }, db,
+  }), /unknown requirement REQ-F-99/)
   closeOrchestratorDb()
 })

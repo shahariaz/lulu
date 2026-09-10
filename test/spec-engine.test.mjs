@@ -15,10 +15,9 @@ import {
   computeSpecDigest,
   createDraftBaseline,
   approveBaselineVersion,
-  extractRequirementIds,
-  analyzeSpecImpact,
   ARCHITECT_SYSTEM_PROMPT,
 } from '../lib/orchestrator/spec-engine.mjs'
+import { parseRequirementsMap, diffRequirementsBaselines } from '../lib/orchestrator/spec-diff.mjs'
 
 function getTempDbPath() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zen-spec-test-'))
@@ -26,14 +25,17 @@ function getTempDbPath() {
 }
 
 test('startSpecConversation initializes chat session with Architect prompt', () => {
+  const dbPath = getTempDbPath()
+  const db = getOrchestratorDb(dbPath)
+  const project = createProject({ name: 'Conversation App', repoPath: '/tmp/conversation-app' }, db)
   const conv = startSpecConversation({
-    projectId: 'proj_123',
+    projectId: project.id,
     featureTitle: 'User Authentication Flow',
     initialPrompt: 'We need OAuth2 login with Google',
-  })
+  }, db)
 
   assert.ok(conv.id.startsWith('conv_'))
-  assert.equal(conv.projectId, 'proj_123')
+  assert.equal(conv.projectId, project.id)
   assert.equal(conv.featureTitle, 'User Authentication Flow')
   assert.equal(conv.messages.length, 2)
   assert.equal(conv.messages[0].role, 'system')
@@ -45,11 +47,12 @@ test('startSpecConversation initializes chat session with Architect prompt', () 
   addSpecMessage(conv.id, {
     role: 'assistant',
     content: 'Understood. What scopes and token refresh policies are required?',
-  })
+  }, db)
 
-  const fetched = getSpecConversation(conv.id)
+  const fetched = getSpecConversation(conv.id, db)
   assert.equal(fetched.messages.length, 3)
   assert.equal(fetched.messages[2].role, 'assistant')
+  closeOrchestratorDb()
 })
 
 test('createDraftBaseline computes SHA256 digest and stores draft in SQLite', () => {
@@ -118,7 +121,7 @@ test('approveBaselineVersion locks baseline and supersedes older versions', () =
   closeOrchestratorDb()
 })
 
-test('extractRequirementIds and analyzeSpecImpact detect requirement deltas', () => {
+test('parseRequirementsMap and diffRequirementsBaselines detect requirement deltas', () => {
   const specV1 = `
 # PRD V1
 - REQ-F-01: Core data model
@@ -133,12 +136,13 @@ test('extractRequirementIds and analyzeSpecImpact detect requirement deltas', ()
 - REQ-NF-01: Latency < 100ms
   `
 
-  const reqsV1 = extractRequirementIds(specV1)
+  const reqsV1 = [...parseRequirementsMap(specV1).keys()]
   assert.deepEqual(reqsV1.sort(), ['REQ-F-01', 'REQ-F-02', 'REQ-NF-01'].sort())
 
-  const impact = analyzeSpecImpact(specV1, specV2)
-  assert.equal(impact.hasImpact, true)
-  assert.deepEqual(impact.addedRequirements, ['REQ-F-03'])
-  assert.deepEqual(impact.removedRequirements, ['REQ-F-02'])
-  assert.deepEqual(impact.retainedRequirements.sort(), ['REQ-F-01', 'REQ-NF-01'].sort())
+  const impact = diffRequirementsBaselines(specV1, specV2)
+  assert.equal(impact.hasChanges, true)
+  assert.deepEqual(impact.added.map((item) => item.id), ['REQ-F-03'])
+  assert.deepEqual(impact.removed.map((item) => item.id), ['REQ-F-02'])
+  assert.deepEqual(impact.unchanged.map((item) => item.id), ['REQ-NF-01'])
+  assert.deepEqual(impact.modified.map((item) => item.id), ['REQ-F-01'])
 })

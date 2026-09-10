@@ -10,6 +10,7 @@ import {
   createBaseline,
   approveBaseline,
   getTask,
+  updateProjectAutonomyMode,
 } from '../lib/orchestrator/db/index.mjs'
 import {
   decomposeBaseline,
@@ -20,6 +21,7 @@ import {
   transitionTask,
   IllegalStateTransitionError,
   VALID_PRODUCT_STAGES,
+  isTransitionAutoAllowed,
 } from '../lib/orchestrator/dag-scheduler.mjs'
 
 function getTempDbPath() {
@@ -33,6 +35,40 @@ test('VALID_PRODUCT_STAGES preserves all 9 visible product stages', () => {
     'Code Review', 'QA', 'Done', 'Blocked', 'Cancelled'
   ]
   assert.deepEqual(Array.from(VALID_PRODUCT_STAGES), expected)
+})
+
+test('autonomy policy changes only the owner-click boundaries', () => {
+  assert.equal(isTransitionAutoAllowed('GUIDED', 'Ready', 'In Progress'), false)
+  assert.equal(isTransitionAutoAllowed('SUPERVISED', 'Ready', 'In Progress'), true)
+  assert.equal(isTransitionAutoAllowed('GUIDED', 'Automated Checks', 'Code Review'), true)
+  assert.equal(isTransitionAutoAllowed('SUPERVISED', 'QA', 'Done'), false)
+  assert.equal(isTransitionAutoAllowed('AUTONOMOUS', 'QA', 'Done'), true)
+  assert.equal(isTransitionAutoAllowed('UNKNOWN', 'Code Review', 'QA'), false)
+})
+
+test('automatic transitions enforce the persisted project autonomy mode', () => {
+  const db = getOrchestratorDb(getTempDbPath())
+  const project = createProject({ name: 'Policy App', repoPath: '/tmp/policy-app' }, db)
+  const baseline = createBaseline({ projectId: project.id, specMarkdown: 'spec', contentDigest: 'policy', status: 'APPROVED' }, db)
+  const { tasks } = decomposeBaseline({ baselineId: baseline.id, taskDefinitions: [{ tempId: 't1', title: 'Policy task' }] }, db)
+  const taskId = tasks[0].id
+
+  assert.throws(
+    () => transitionTask(taskId, 'In Progress', { automatic: true }, db),
+    /GUIDED mode requires owner approval/,
+  )
+  updateProjectAutonomyMode(project.id, 'SUPERVISED', db)
+  transitionTask(taskId, 'In Progress', { automatic: true }, db)
+  transitionTask(taskId, 'Automated Checks', { automatic: true }, db)
+  transitionTask(taskId, 'Code Review', { automatic: true }, db)
+  transitionTask(taskId, 'QA', { automatic: true }, db)
+  assert.throws(
+    () => transitionTask(taskId, 'Done', { automatic: true }, db),
+    /SUPERVISED mode requires owner approval/,
+  )
+  updateProjectAutonomyMode(project.id, 'AUTONOMOUS', db)
+  assert.equal(transitionTask(taskId, 'Done', { automatic: true }, db).status, 'Done')
+  closeOrchestratorDb()
 })
 
 test('decomposeBaseline parses tasks and unblocks zero-dependency tasks', () => {
@@ -227,6 +263,75 @@ test('Single active writer rule locks workspace to prevent concurrent writers', 
   // Now Task B can be claimed!
   claimTaskForExecution(taskB.id, project.id, db)
   assert.equal(getTask(taskB.id, db).status, 'In Progress')
+
+  closeOrchestratorDb()
+})
+
+/**
+ * The autonomy dial must be enforced on the REAL claim path, not just as a pure function.
+ *
+ * `claimTaskForExecution` previously called `updateTaskStatus` directly, so
+ * `isTransitionAutoAllowed` was exercised only by unit tests while `/claim` bypassed it. That
+ * made GUIDED indistinguishable from SUPERVISED as soon as anything dispatched work without a
+ * human click — which is exactly what the worker-pool / swarm work will do.
+ */
+test('an automatic claim respects the project autonomy mode', () => {
+  const db = getOrchestratorDb(getTempDbPath())
+  const project = createProject({ name: 'Autonomy', repoPath: '/tmp/autonomy' }, db)
+  const baseline = createBaseline({ projectId: project.id, specMarkdown: 'spec', contentDigest: 'd', status: 'APPROVED' }, db)
+
+  const { tasks } = decomposeBaseline({
+    baselineId: baseline.id,
+    taskDefinitions: [
+      { tempId: 'a', title: 'First task', blockedBy: [] },
+      { tempId: 'b', title: 'Second task', blockedBy: [] },
+    ],
+  }, db)
+  const [first, second] = tasks
+
+  // GUIDED is the default: the orchestrator may not start work on its own.
+  assert.throws(
+    () => claimTaskForExecution(first.id, project.id, db, { automatic: true }),
+    /GUIDED mode requires owner approval/,
+  )
+  assert.equal(getTask(first.id, db).status, 'Ready', 'a refused claim must not move the task')
+
+  // An owner-initiated claim is still allowed in GUIDED.
+  assert.equal(claimTaskForExecution(first.id, project.id, db).status, 'In Progress')
+
+  // SUPERVISED: the orchestrator may start work by itself.
+  updateProjectAutonomyMode(project.id, 'SUPERVISED', db)
+  transitionTask(first.id, 'Blocked', { actor: 'test' }, db)
+
+  assert.equal(
+    claimTaskForExecution(second.id, project.id, db, { automatic: true }).status,
+    'In Progress',
+  )
+
+  closeOrchestratorDb()
+})
+
+test('a claim refused by the workspace lock leaves no partial state', () => {
+  const db = getOrchestratorDb(getTempDbPath())
+  const project = createProject({ name: 'Lock', repoPath: '/tmp/lock' }, db)
+  const baseline = createBaseline({ projectId: project.id, specMarkdown: 'spec', contentDigest: 'd', status: 'APPROVED' }, db)
+
+  const { tasks } = decomposeBaseline({
+    baselineId: baseline.id,
+    taskDefinitions: [
+      { tempId: 'a', title: 'First', blockedBy: [] },
+      { tempId: 'b', title: 'Second', blockedBy: [] },
+    ],
+  }, db)
+  const [first, second] = tasks
+
+  claimTaskForExecution(first.id, project.id, db)
+
+  // Single-active-writer: the second claim is refused, and must not half-apply. The lock check
+  // and the status write are now one transaction, so there is no window where both succeed.
+  assert.throws(() => claimTaskForExecution(second.id, project.id, db), /workspace is locked/)
+  assert.equal(getTask(second.id, db).status, 'Ready')
+  assert.equal(getTask(first.id, db).status, 'In Progress')
 
   closeOrchestratorDb()
 })

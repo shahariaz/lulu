@@ -101,20 +101,20 @@ test('Milestone 1 End-to-End Vertical Slice: Import -> Scoping -> Baseline -> DA
       projectId: project.id,
       featureTitle: 'Token Bucket Rate Limiter',
       initialPrompt: 'We need an in-memory token bucket rate limiter for API requests.',
-    })
+    }, db)
     assert.ok(scoping.id)
 
     // Architect responds and requests clarification
     addSpecMessage(scoping.id, {
       role: 'assistant',
       content: 'Understood. What capacity and refill rate are required? Should it be thread-safe?',
-    })
+    }, db)
 
     // User clarifies
     addSpecMessage(scoping.id, {
       role: 'user',
       content: 'Capacity 10 tokens, refill 1 token per second. Include comprehensive unit tests.',
-    })
+    }, db)
 
     // =========================================================================
     // Stage 3: Baseline Specification Drafting & Approval

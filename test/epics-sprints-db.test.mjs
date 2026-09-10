@@ -18,6 +18,11 @@ import {
   getSprint,
   listSprints,
   updateSprintStatus,
+  createFeature,
+  getFeature,
+  listFeatures,
+  listProjectFeatures,
+  updateFeatureStatus,
   createTask,
   getTask,
   listTasks,
@@ -30,16 +35,47 @@ function getTempDbPath() {
   return path.join(tmpDir, 'test-epics.sqlite')
 }
 
-test('Migration 002 applies cleanly and records in schema_migrations', () => {
+test('Migrations through 005 apply cleanly and record in schema_migrations', () => {
   const dbPath = getTempDbPath()
   const db = getOrchestratorDb(dbPath)
 
   const applied = getAppliedMigrations(db)
-  assert.equal(applied.length, 2)
+  assert.equal(applied.length, 5)
   assert.equal(applied[0].version, 1)
   assert.equal(applied[1].version, 2)
   assert.equal(applied[1].name, 'epics_and_sprints')
+  assert.equal(applied[2].name, 'features_and_acceptance')
+  assert.equal(applied[3].name, 'conversations')
+  assert.equal(applied[4].name, 'autonomy')
 
+  closeOrchestratorDb()
+})
+
+test('Features and acceptance criteria round-trip and cascade with their epic', () => {
+  const db = getOrchestratorDb(getTempDbPath())
+  const project = createProject({ name: 'Feature App', repoPath: '/tmp/feature-app' }, db)
+  const baseline = createBaseline({ projectId: project.id, specMarkdown: '# PRD\n### REQ-F-01: Search', contentDigest: 'd', status: 'APPROVED' }, db)
+  const milestone = createMilestone({ baselineId: baseline.id, title: 'M1' }, db)
+  const epic = createEpic({ projectId: project.id, baselineId: baseline.id, title: 'Discovery' }, db)
+  const feature = createFeature({
+    epicId: epic.id, projectId: project.id, title: 'Search records',
+    acceptanceCriteria: ['Given records, when a query is entered, then matching records appear.'],
+    linkedRequirementIds: ['REQ-F-01'],
+  }, db)
+  const task = createTask({
+    milestoneId: milestone.id, epicId: epic.id, featureId: feature.id, title: 'Build search index',
+    acceptanceCriteria: ['The index returns an exact-title match.'], linkedRequirementIds: ['REQ-F-01'],
+  }, db)
+
+  assert.deepEqual(getFeature(feature.id, db).acceptance_criteria, feature.acceptance_criteria)
+  assert.deepEqual(getTask(task.id, db).acceptance_criteria, ['The index returns an exact-title match.'])
+  assert.equal(listFeatures(epic.id, db).length, 1)
+  assert.equal(listProjectFeatures(project.id, db).length, 1)
+  assert.equal(updateFeatureStatus(feature.id, 'IN_PROGRESS', db).status, 'IN_PROGRESS')
+
+  db.prepare('DELETE FROM epics WHERE id = ?').run(epic.id)
+  assert.equal(getFeature(feature.id, db), null)
+  assert.equal(getTask(task.id, db).feature_id, null)
   closeOrchestratorDb()
 })
 

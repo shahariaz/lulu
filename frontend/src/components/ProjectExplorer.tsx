@@ -3,6 +3,7 @@ import { Card, CardHeader, CardTitle } from './ui/Card'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Badge } from './ui/Badge'
+import { FolderOpen } from 'lucide-react'
 import { formatSha, timeAgo } from '../lib/utils'
 import { api } from '../lib/api'
 import type { Project, Inspection } from '../types'
@@ -27,6 +28,28 @@ export function ProjectExplorer({
   const [mode, setMode] = useState<'create' | 'connect'>('create')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const handlePickFolder = async () => {
+    try {
+      const res = await api.pickFolder()
+      if (res && res.path && !res.canceled) {
+        const cleanPath = res.path
+        if (mode === 'create' && projectName.trim()) {
+          const finalPath = cleanPath.endsWith(projectName.trim())
+            ? cleanPath
+            : `${cleanPath}/${projectName.trim()}`
+          setRepoPath(finalPath)
+        } else {
+          setRepoPath(cleanPath)
+          if (!projectName.trim()) {
+            setProjectName(cleanPath.split('/').pop() || '')
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn('Folder picker error:', err.message)
+    }
+  }
 
   const handleImport = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -220,16 +243,39 @@ export function ProjectExplorer({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-zinc-700 mb-1">
-                  Local filesystem path
-                </label>
-                <Input
-                  placeholder="/Users/username/projects/my-repo"
-                  value={repoPath}
-                  onChange={(e) => setRepoPath(e.target.value)}
-                  className="font-mono text-xs"
-                  required
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-zinc-700">
+                    Local filesystem path
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handlePickFolder}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-[#ea3a12] hover:text-[#c82e0a] cursor-pointer"
+                  >
+                    <FolderOpen size={12} />
+                    <span>Choose folder...</span>
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="/Users/username/projects/my-repo"
+                    value={repoPath}
+                    onChange={(e) => setRepoPath(e.target.value)}
+                    className="font-mono text-xs flex-1"
+                    required
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handlePickFolder}
+                    className="h-9 px-3 shrink-0"
+                    title="Open native folder picker"
+                  >
+                    <FolderOpen size={13} />
+                    <span className="hidden sm:inline">Browse</span>
+                  </Button>
+                </div>
                 <p className="text-[11px] text-zinc-400 mt-1">
                   {mode === 'create'
                     ? 'Directory will be created if it does not exist.'

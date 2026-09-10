@@ -21,6 +21,8 @@ export const api = {
   listProjects: () => request<{ projects: Project[] }>('/api/orchestrator/projects'),
   importProject: (repoPath: string, name?: string) => request<{ project: Project; inspection: Inspection }>('/api/orchestrator/projects', { method: 'POST', body: json({ repoPath, name, initNew: false }) }),
   createProject: (params: { repoPath: string; name?: string; initNew?: boolean; forceDirty?: boolean }) => request<{ project: Project; inspection: Inspection }>('/api/orchestrator/projects', { method: 'POST', body: json(params) }),
+  pickFolder: () => request<{ path?: string; canceled?: boolean; supported?: boolean }>('/api/orchestrator/system/pick-folder', { method: 'POST' }),
+  browseDirectories: (dirPath?: string) => request<{ currentPath: string; parentPath: string; directories: string[] }>(`/api/orchestrator/system/browse-directories${dirPath ? `?path=${encodeURIComponent(dirPath)}` : ''}`),
   getProject: (id: string) => request<WorkspacePayload>(`/api/orchestrator/projects/${id}`),
   updateAutonomy: (id: string, autonomyMode: Project['autonomy_mode']) => request<{ project: Project }>(`/api/orchestrator/projects/${id}/autonomy`, { method: 'PATCH', body: json({ autonomyMode }) }),
 

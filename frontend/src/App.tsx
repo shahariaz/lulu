@@ -13,7 +13,7 @@ import { ActionBar } from './components/ActionBar'
 import { Button } from './components/ui/Button'
 import { Input } from './components/ui/Input'
 import {
-  Activity, FolderGit2, GitCompareArrows, LayoutDashboard, MessageSquareText,
+  Activity, FolderGit2, FolderOpen, GitCompareArrows, LayoutDashboard, MessageSquareText,
   MonitorPlay, Mountain, Plus, Radio, RefreshCw, ScanSearch, Sparkles, Workflow,
 } from 'lucide-react'
 import { api } from './lib/api'
@@ -106,6 +106,28 @@ export function App() {
       setModalError(err.message)
     } finally {
       setModalLoading(false)
+    }
+  }
+
+  const handlePickFolder = async () => {
+    try {
+      const res = await api.pickFolder()
+      if (res && res.path && !res.canceled) {
+        const cleanPath = res.path
+        if (addRepoMode === 'create' && modalRepoName.trim()) {
+          const finalPath = cleanPath.endsWith(modalRepoName.trim())
+            ? cleanPath
+            : `${cleanPath}/${modalRepoName.trim()}`
+          setModalRepoPath(finalPath)
+        } else {
+          setModalRepoPath(cleanPath)
+          if (!modalRepoName.trim()) {
+            setModalRepoName(cleanPath.split('/').pop() || '')
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn('Folder picker error:', err.message)
     }
   }
 
@@ -649,16 +671,39 @@ export function App() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-zinc-700 mb-1">
-                  Local filesystem path
-                </label>
-                <Input
-                  placeholder="/Users/username/projects/my-repo"
-                  value={modalRepoPath}
-                  onChange={(e) => setModalRepoPath(e.target.value)}
-                  className="font-mono text-xs"
-                  required
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-zinc-700">
+                    Local filesystem path
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handlePickFolder}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-[#ea3a12] hover:text-[#c82e0a] cursor-pointer"
+                  >
+                    <FolderOpen size={12} />
+                    <span>Choose folder...</span>
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="/Users/username/projects/my-repo"
+                    value={modalRepoPath}
+                    onChange={(e) => setModalRepoPath(e.target.value)}
+                    className="font-mono text-xs flex-1"
+                    required
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handlePickFolder}
+                    className="h-9 px-3 shrink-0"
+                    title="Open native folder picker"
+                  >
+                    <FolderOpen size={13} />
+                    <span className="hidden sm:inline">Browse</span>
+                  </Button>
+                </div>
                 <p className="text-[11px] text-zinc-400 mt-1">
                   {addRepoMode === 'create'
                     ? 'Directory will be created if it does not exist. A main branch, README.md, and .gitignore will be committed automatically.'

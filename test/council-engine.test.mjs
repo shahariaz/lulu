@@ -367,3 +367,44 @@ test('a research process that produces a complete result and then hangs is not w
     closeOrchestratorDb()
   }
 })
+
+test('a refusal names the degraded search backend instead of blaming the idea', async () => {
+  const db = tempDb()
+  try {
+    // Wigolo queries several engines and uses cross-engine consensus to filter noise. When most
+    // are rate-limited or blocked the pool collapses to one engine, consensus disappears, and a
+    // single bad scrape becomes the whole result set. That is the real cause of the "random"
+    // failures, and the owner cannot act on it unless the refusal says so.
+    await assert.rejects(
+      () => researchMarket({
+        ideaTitle: 'Rain', ideaDescription: 'Rainfall tracking.', db,
+        searchRunner: async () => ({
+          exitCode: 0,
+          stdout: JSON.stringify({
+            engines_used: ['bing'],
+            engine_pool: { healthy: 1, total: 7, degraded: true, reasons: ['pool_collapsed'] },
+            engine_warnings: [
+              { engine: 'marginalia', code: 'http_429', message: 'Marginalia returned 429' },
+              { engine: 'mojeek', code: 'http_403', message: 'Mojeek returned 403' },
+            ],
+          }),
+        }),
+        runner: async () => ({
+          exitCode: 0, stderr: '',
+          stdout: JSON.stringify({ sources: [{ title: 'Irrelevant', url: 'https://example.test/x' }] }),
+        }),
+        structureRunner: async () => ({ competitors: [], marketSize: 'Unknown', differentiators: [], risks: [], sources: [] }),
+      }),
+      (err) => {
+        assert.match(err.message, /1 of 7 search engines/,
+          'the refusal must report how much of the search backend is actually up')
+        assert.match(err.message, /Marginalia returned 429/, 'and name what failed')
+        assert.match(err.message, /no cross-engine consensus/,
+          'and explain why one engine means unreliable results')
+        return true
+      },
+    )
+  } finally {
+    closeOrchestratorDb()
+  }
+})

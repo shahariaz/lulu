@@ -873,7 +873,7 @@ export function IdeaStudioView({ project, onProjectInitialized }: IdeaStudioView
 
 /**
  * Formatted Council message renderer that parses code blocks,
- * subheadings, bullet lists, bold text, and numbered items into clean styled React components.
+ * subheadings, bullet lists, bold text, numbered items, and LaTeX math into clean styled React components.
  */
 function FormattedCouncilMessage({ content }: { content: string }) {
   const parts = content.split(/(```[\s\S]*?```)/g)
@@ -887,7 +887,7 @@ function FormattedCouncilMessage({ content }: { content: string }) {
           const isLang = /^[a-zA-Z0-9_-]+$/.test(firstLine)
           const codeLines = isLang ? lines.slice(1) : lines
           return (
-            <div key={idx} className="my-2 rounded-lg bg-zinc-900 border border-zinc-800 overflow-hidden shadow-2xs">
+            <div key={idx} className="my-2.5 rounded-lg bg-zinc-900 border border-zinc-800 overflow-hidden shadow-2xs">
               {isLang && (
                 <div className="px-3 py-1 bg-zinc-800/80 border-b border-zinc-700/50 text-[10px] font-mono text-zinc-400">
                   {firstLine}
@@ -902,40 +902,81 @@ function FormattedCouncilMessage({ content }: { content: string }) {
 
         const lines = part.split('\n')
         return (
-          <div key={idx} className="space-y-1">
+          <div key={idx} className="space-y-1.5">
             {lines.map((line, lineIdx) => {
               const trimmed = line.trim()
               if (!trimmed) return <div key={lineIdx} className="h-0.5" />
 
+              // Horizontal dividers: --- or ***
+              if (trimmed === '---' || trimmed === '***' || trimmed === '___') {
+                return <hr key={lineIdx} className="my-3 border-t border-zinc-200" />
+              }
+
+              // Standalone command flags (e.g. -f hls -hls_time 1...)
+              if (/^-(?:f|hls|preset|c:v|b:v|i|filter|-)\b/.test(trimmed)) {
+                return (
+                  <pre key={lineIdx} className="my-1.5 px-3 py-1.5 rounded-md bg-zinc-900 text-zinc-200 font-mono text-[11px] overflow-x-auto whitespace-pre border border-zinc-800 shadow-2xs">
+                    {trimmed}
+                  </pre>
+                )
+              }
+
+              // Headings: H1, H2, H3, H4, H5
+              if (trimmed.startsWith('##### ')) {
+                return (
+                  <h6 key={lineIdx} className="font-semibold text-zinc-800 text-xs mt-2 mb-0.5">
+                    {renderInlineFormatting(trimmed.slice(6))}
+                  </h6>
+                )
+              }
+              if (trimmed.startsWith('#### ')) {
+                return (
+                  <h5 key={lineIdx} className="font-bold text-zinc-900 text-xs mt-3 mb-1">
+                    {renderInlineFormatting(trimmed.slice(5))}
+                  </h5>
+                )
+              }
               if (trimmed.startsWith('### ')) {
                 return (
-                  <h4 key={lineIdx} className="font-bold text-zinc-900 text-xs mt-2.5 mb-1">
+                  <h4 key={lineIdx} className="font-bold text-zinc-900 text-xs mt-3 mb-1">
                     {renderInlineFormatting(trimmed.slice(4))}
                   </h4>
                 )
               }
               if (trimmed.startsWith('## ')) {
                 return (
-                  <h3 key={lineIdx} className="font-bold text-zinc-900 text-sm mt-3 mb-1">
+                  <h3 key={lineIdx} className="font-bold text-zinc-900 text-sm mt-3.5 mb-1.5">
                     {renderInlineFormatting(trimmed.slice(3))}
                   </h3>
                 )
               }
-              if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
+              if (trimmed.startsWith('# ')) {
                 return (
-                  <div key={lineIdx} className="flex items-start gap-2 pl-2">
+                  <h2 key={lineIdx} className="font-bold text-zinc-900 text-base mt-4 mb-2">
+                    {renderInlineFormatting(trimmed.slice(2))}
+                  </h2>
+                )
+              }
+
+              // Bullets: •, *, -, · (with or without space, e.g. •Initialize SQLite...)
+              if (/^(\*|\-|•|·)\s*/.test(trimmed)) {
+                const bulletText = trimmed.replace(/^(\*|\-|•|·)\s*/, '')
+                return (
+                  <div key={lineIdx} className="flex items-start gap-2 pl-2 my-0.5">
                     <span className="text-[#ea3a12] text-xs font-bold leading-5">•</span>
-                    <span className="flex-1">{renderInlineFormatting(trimmed.slice(2))}</span>
+                    <span className="flex-1">{renderInlineFormatting(bulletText)}</span>
                   </div>
                 )
               }
-              if (/^\d+\.\s/.test(trimmed)) {
-                const dotIdx = trimmed.indexOf('.')
-                const num = trimmed.slice(0, dotIdx)
-                const text = trimmed.slice(dotIdx + 1).trim()
+
+              // Numbered items (e.g. "1. Hardware Detection:" or "1.Hardware Detection:")
+              const numMatch = trimmed.match(/^(\d+)\.\s*(.*)/)
+              if (numMatch) {
+                const num = numMatch[1]
+                const text = numMatch[2]
                 return (
-                  <div key={lineIdx} className="flex items-start gap-2 pl-2">
-                    <span className="text-zinc-400 font-mono text-xs leading-5 font-medium">{num}.</span>
+                  <div key={lineIdx} className="flex items-start gap-2 pl-2 my-0.5">
+                    <span className="text-zinc-400 font-mono text-xs leading-5 font-semibold shrink-0">{num}.</span>
                     <span className="flex-1">{renderInlineFormatting(text)}</span>
                   </div>
                 )
@@ -950,7 +991,23 @@ function FormattedCouncilMessage({ content }: { content: string }) {
   )
 }
 
-function renderInlineFormatting(text: string) {
+function cleanMathNotation(text: string): string {
+  return text.replace(/\$([^\$]+)\$/g, (_, inner) => {
+    return inner
+      .replace(/\\text\{([^}]+)\}/g, '$1')
+      .replace(/\\le\b/g, '≤')
+      .replace(/\\ge\b/g, '≥')
+      .replace(/\\pm\b/g, '±')
+      .replace(/\\times\b/g, '×')
+      .replace(/\\approx\b/g, '≈')
+      .replace(/\\neq\b/g, '≠')
+      .replace(/\\rightarrow\b/g, '→')
+      .trim()
+  })
+}
+
+function renderInlineFormatting(rawText: string) {
+  const text = cleanMathNotation(rawText)
   const segments = text.split(/(\*\*.*?\*\*|`.*?`)/g)
   return segments.map((seg, i) => {
     if (seg.startsWith('**') && seg.endsWith('**')) {

@@ -217,14 +217,35 @@ export function App() {
           </div>
         </div>
 
-        {/* Active Workspace Box */}
-        <div className="m-3 rounded-lg border border-zinc-200/80 bg-zinc-50/60 p-3 shrink-0">
-          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold text-[#ea3a12]">
-            <FolderGit2 size={12} strokeWidth={2} /> Active repository
+        {/* Active Workspace Box with Quick Switcher */}
+        <div className="m-3 rounded-lg border border-zinc-200/80 bg-zinc-50/70 p-3 shrink-0">
+          <div className="mb-1 flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[#ea3a12]">
+              <FolderGit2 size={12} strokeWidth={2} /> Active repository
+            </div>
+            {projects.length > 1 && (
+              <span className="text-[10px] text-zinc-400 font-medium">Switch ▾</span>
+            )}
           </div>
-          <div className="truncate text-xs font-semibold text-zinc-900" title={activeProject?.name || ''}>
-            {activeProject?.name || 'No repository selected'}
+
+          <div className="relative">
+            <select
+              aria-label="Switch active repository"
+              value={activeProject?.id || ''}
+              onChange={(e) => {
+                const found = projects.find((p) => p.id === e.target.value)
+                if (found) selectProject(found)
+              }}
+              className="w-full truncate text-xs font-semibold text-zinc-900 bg-transparent py-0.5 outline-none cursor-pointer hover:text-[#ea3a12] transition-colors"
+            >
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
           </div>
+
           <div className="mt-1 flex items-center justify-between text-[10px] text-zinc-500">
             <span className="truncate max-w-[120px] font-mono" title={activeProject?.repo_path || ''}>
               {activeProject?.repo_path?.split('/').pop() || 'No repo'}
@@ -295,19 +316,43 @@ export function App() {
                 <div className="text-xs font-semibold text-zinc-900 flex items-center gap-1.5">
                   <span className="text-zinc-400">Discovery</span>
                   <span className="text-zinc-300">/</span>
-                  <span className="text-zinc-900 font-bold">{activeProject?.name || 'Idea studio'}</span>
+                  <select
+                    aria-label="Switch active repository"
+                    value={activeProject?.id || ''}
+                    onChange={(e) => {
+                      const found = projects.find((p) => p.id === e.target.value)
+                      if (found) selectProject(found)
+                    }}
+                    className="text-xs font-bold text-zinc-900 bg-transparent hover:bg-zinc-100 rounded-md px-1.5 py-0.5 cursor-pointer outline-none transition-colors border border-transparent hover:border-zinc-200"
+                  >
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
                   Active session
                 </span>
               </div>
             ) : (
-              <div className="min-w-0">
-                <div className="text-[10px] font-semibold text-[#ea3a12]">
+              <div className="min-w-0 flex flex-col">
+                <div className="text-[10px] font-semibold text-[#ea3a12] leading-none">
                   {tabMeta.eyebrow}
                 </div>
-                <div className="truncate text-sm font-semibold text-zinc-900">
-                  {activeProject?.name || 'Claude-Zen workspace'}
+                <div className="flex items-center gap-1 mt-0.5">
+                  <select
+                    aria-label="Switch active repository"
+                    value={activeProject?.id || ''}
+                    onChange={(e) => {
+                      const found = projects.find((p) => p.id === e.target.value)
+                      if (found) selectProject(found)
+                    }}
+                    className="text-sm font-semibold text-zinc-900 bg-transparent hover:bg-zinc-100 rounded-md px-1 py-0.5 cursor-pointer outline-none transition-colors border border-transparent hover:border-zinc-200 truncate max-w-[280px]"
+                  >
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             )}

@@ -29,6 +29,7 @@ import {
 } from '../lib/orchestrator/db/index.mjs'
 import { SqliteStorageRepository } from '../lib/orchestrator/db/repository.mjs'
 import { getAppliedMigrations } from '../lib/orchestrator/db/migration-runner.mjs'
+import { decomposeBaselineHierarchical } from '../lib/orchestrator/epic-planner.mjs'
 
 function getTempDbPath() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zen-epic-test-'))
@@ -179,6 +180,72 @@ test('SqliteStorageRepository supports epics and sprints abstract methods', asyn
 
   const sprints = await storage.listSprints(project.id)
   assert.equal(sprints.length, 1)
+
+  closeOrchestratorDb()
+})
+
+test('decomposeBaselineHierarchical preserves multiple milestones from roadmap phases', () => {
+  const dbPath = getTempDbPath()
+  const db = getOrchestratorDb(dbPath)
+
+  const project = createProject({ name: 'Multi Milestone App', repoPath: '/tmp/multi-ms-app' }, db)
+  const baseline = createBaseline({
+    projectId: project.id,
+    specMarkdown: `# Spec\n\n### REQ-F-01: Core Feature\n**Priority:** MUST\nDescription\n\n**Acceptance Criteria**\n- Criteria 1\n\n### REQ-F-02: Advanced Feature\n**Priority:** SHOULD\nDescription\n\n**Acceptance Criteria**\n- Criteria 2`,
+    contentDigest: 'sha256:d1',
+    status: 'APPROVED',
+  }, db)
+
+  const decomposition = decomposeBaselineHierarchical({
+    baselineId: baseline.id,
+    projectId: project.id,
+    epicsWithTasks: [
+      {
+        title: 'Epic 1: Ingestion',
+        features: [{
+          title: 'Feature 1',
+          acceptanceCriteria: ['Criteria 1'],
+          linkedRequirementIds: ['REQ-F-01'],
+          tasks: [{
+            title: 'Task 1',
+            scopePaths: ['src/task1.js'],
+            acceptanceCriteria: ['Criteria 1'],
+            linkedRequirementIds: ['REQ-F-01'],
+          }]
+        }]
+      },
+      {
+        title: 'Epic 2: Analytics',
+        features: [{
+          title: 'Feature 2',
+          acceptanceCriteria: ['Criteria 2'],
+          linkedRequirementIds: ['REQ-F-02'],
+          tasks: [{
+            title: 'Task 2',
+            scopePaths: ['src/task2.js'],
+            acceptanceCriteria: ['Criteria 2'],
+            linkedRequirementIds: ['REQ-F-02'],
+          }]
+        }]
+      }
+    ],
+    milestones: [
+      { title: 'Phase 1: Foundation', orderIndex: 1 },
+      { title: 'Phase 2: Scale', orderIndex: 2 }
+    ]
+  }, db)
+
+  assert.equal(decomposition.milestones.length, 2)
+  assert.equal(decomposition.milestones[0].title, 'Phase 1: Foundation')
+  assert.equal(decomposition.milestones[1].title, 'Phase 2: Scale')
+  assert.equal(decomposition.tasks.length, 2)
+
+  const ms1Tasks = listTasks(decomposition.milestones[0].id, db)
+  const ms2Tasks = listTasks(decomposition.milestones[1].id, db)
+  assert.equal(ms1Tasks.length, 1)
+  assert.equal(ms2Tasks.length, 1)
+  assert.equal(ms1Tasks[0].title, 'Task 1')
+  assert.equal(ms2Tasks[0].title, 'Task 2')
 
   closeOrchestratorDb()
 })

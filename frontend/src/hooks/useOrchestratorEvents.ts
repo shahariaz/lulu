@@ -6,6 +6,7 @@ export const ORCHESTRATOR_EVENTS = [
   'task_accepted', 'changes_requested', 'feature_merged', 'preview_started',
   'preview_stopped', 'swarm_scheduled', 'task_integrated_via_queue',
   'scope_invalidated', 'autonomy_changed', 'project_initialized_from_blueprint',
+  'studio_progress',
 ] as const
 
 export function useOrchestratorEvents(onEvent: (type: string, data: unknown) => void): void {

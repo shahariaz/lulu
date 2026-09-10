@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
-import { ArrowRight, CheckCircle2, ExternalLink, FileCheck2, FileText, Lightbulb, MessageSquareText, Search, Send, Users } from 'lucide-react'
+import React, { useState, useCallback } from 'react'
+import { ArrowRight, CheckCircle2, ExternalLink, FileCheck2, FileText, Lightbulb, MessageSquareText, RefreshCw, Search, Send, Users } from 'lucide-react'
 import { api } from '../lib/api'
 import { Button } from './ui/Button'
 import { Card } from './ui/Card'
 import { Input } from './ui/Input'
+import { useOrchestratorEvents } from '../hooks/useOrchestratorEvents'
 
 interface IdeaStudioViewProps {
   onProjectInitialized: (project: any) => void
@@ -27,6 +28,16 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
   const [tab, setTab] = useState<BlueprintTab>('market')
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [studioProgress, setStudioProgress] = useState<string | null>(null)
+
+  useOrchestratorEvents(useCallback((type: string, data: any) => {
+    if (type === 'studio_progress' && (!data?.sessionId || data.sessionId === sessionId)) {
+      setStudioProgress(data.message || null)
+    }
+    if (type === 'project_initialized_from_blueprint') {
+      setStudioProgress(null)
+    }
+  }, [sessionId]))
 
   const briefDescription = [
     `Problem: ${ideaDescription.trim()}`,
@@ -66,8 +77,13 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
   })
 
   const initialize = () => sessionId && blueprint && run('Creating delivery plan', async () => {
-    const data = await api.initializeProject({ sessionId, repoPath: repoPath.trim(), projectName: projectName.trim(), blueprint, marketResearch: research })
-    onProjectInitialized(data.project)
+    setStudioProgress('Initializing delivery workspace...')
+    try {
+      const data = await api.initializeProject({ sessionId, repoPath: repoPath.trim(), projectName: projectName.trim(), blueprint, marketResearch: research })
+      onProjectInitialized(data.project)
+    } finally {
+      setStudioProgress(null)
+    }
   })
 
   if (!sessionId) {
@@ -297,11 +313,27 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
                       onChange={e => setRepoPath(e.target.value)}
                       placeholder="/path/to/new/repository"
                       className="font-mono text-xs"
+                      disabled={!!busy}
                     />
                     <Button variant="primary" onClick={initialize} disabled={!!busy || !repoPath.trim()}>
-                      Approve PRD & initialize <ArrowRight className="ml-2 h-4 w-4" />
+                      {busy === 'Creating delivery plan' ? (
+                        <>
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1 text-white" />
+                          Initializing plan...
+                        </>
+                      ) : (
+                        <>
+                          Approve PRD & initialize <ArrowRight className="ml-2 h-4 w-4" />
+                        </>
+                      )}
                     </Button>
                   </div>
+                  {studioProgress && (
+                    <div className="flex items-center gap-2 text-xs font-mono text-zinc-700 bg-white border border-zinc-200 px-3 py-2 rounded-lg mt-3 shadow-2xs">
+                      <span className="h-2 w-2 rounded-full bg-[#ea3a12] animate-ping" />
+                      <span>{studioProgress}</span>
+                    </div>
+                  )}
                   <p className="mt-2 text-[11px] text-zinc-500">
                     Approval immutably binds requirement identifiers to delivery tasks.
                   </p>

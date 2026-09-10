@@ -1,7 +1,23 @@
 #!/usr/bin/env node
 // Claude-Zen Delivery Platform & Cockpit Daemon
 
-import { startOrchestratorServer } from '../lib/orchestrator/api.mjs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+// Load .env exactly like start.sh and bin/claude-zen do.
+//
+// Without this the orchestrator was the one entry point that ignored .env, so a setting placed
+// there (BRAVE_API_KEY, ZEN_REVIEWER_MODEL, gateway URLs) applied to the gateways and silently
+// did nothing here — and this is the process that spawns the research tool and calls the
+// gateways. Imported dynamically below so the env is populated before any module reads it.
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+try {
+  process.loadEnvFile(path.join(repoRoot, '.env'))
+} catch {
+  // .env is optional; every setting has a default.
+}
+
+const { startOrchestratorServer } = await import('../lib/orchestrator/api.mjs')
 
 const PORT = Number(process.env.ZEN_ORCHESTRATOR_PORT || 8900)
 
@@ -16,6 +32,11 @@ try {
   console.log(`  API Base:    ${url}/api/orchestrator/`)
   console.log(`  Events SSE:  ${url}/api/orchestrator/events`)
   console.log(`  Port:        ${PORT} (Independent of gateways :8787-8789)`)
+  // Stated at boot because the failure mode is silence: a key that never reached this process
+  // looks exactly like a key that is working, until research quietly runs on a thinner pool.
+  console.log(`  Research:    ${process.env.BRAVE_API_KEY
+    ? 'Brave search key configured (3-engine pool)'
+    : 'keyless (2-engine pool) - set BRAVE_API_KEY in .env to add a third'}`)
   console.log(`========================================================\n`)
 
   const onShutdown = () => {

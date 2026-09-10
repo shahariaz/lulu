@@ -370,6 +370,8 @@ test('a research process that produces a complete result and then hangs is not w
 
 test('a refusal names the degraded search backend instead of blaming the idea', async () => {
   const db = tempDb()
+  const previousBackoff = process.env.ZEN_RESEARCH_POOL_BACKOFF_MS
+  process.env.ZEN_RESEARCH_POOL_BACKOFF_MS = '1' // this pool never recovers; do not really wait
   try {
     // Wigolo queries several engines and uses cross-engine consensus to filter noise. When most
     // are rate-limited or blocked the pool collapses to one engine, consensus disappears, and a
@@ -405,6 +407,75 @@ test('a refusal names the degraded search backend instead of blaming the idea', 
       },
     )
   } finally {
+    process.env.ZEN_RESEARCH_POOL_BACKOFF_MS = previousBackoff
+    closeOrchestratorDb()
+  }
+})
+
+test('research waits for a healthy search pool instead of paying for a doomed call', async () => {
+  const db = tempDb()
+  const probes = []
+  const previousBackoff = process.env.ZEN_RESEARCH_POOL_BACKOFF_MS
+  process.env.ZEN_RESEARCH_POOL_BACKOFF_MS = '1' // the wait is real; this suite must stay fast
+  try {
+    // Engines drop out on rate-limit and their breakers reopen after a cooldown, so a collapsed
+    // pool is transient. Probing costs ~1s; the research call costs 30-40s and on one engine
+    // most likely produces a brief the substance gate rejects. So probe until the pool recovers.
+    const brief = await researchMarket({
+      ideaTitle: 'Rain', ideaDescription: 'Rainfall tracking.', db,
+      searchRunner: async () => {
+        probes.push(Date.now())
+        const collapsed = probes.length < 3
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            engines_used: collapsed ? ['bing'] : ['bing', 'duckduckgo', 'wikipedia'],
+            engine_pool: collapsed
+              ? { healthy: 1, total: 7, degraded: true }
+              : { healthy: 3, total: 7, degraded: false },
+            engine_warnings: collapsed ? [{ engine: 'marginalia', code: 'http_429', message: 'Marginalia returned 429' }] : [],
+          }),
+        }
+      },
+      runner: async () => ({ exitCode: 0, stderr: '', stdout: JSON.stringify(TEST_RESEARCH) }),
+    })
+
+    assert.equal(probes.length, 3, 'it must keep probing until the pool recovers')
+    assert.equal(brief.competitors[0].name, 'AuditCo', 'and then do the research normally')
+  } finally {
+    process.env.ZEN_RESEARCH_POOL_BACKOFF_MS = previousBackoff
+    closeOrchestratorDb()
+  }
+})
+
+test('a pool that never recovers does not block research forever', async () => {
+  const db = tempDb()
+  let probes = 0
+  const previousBackoff = process.env.ZEN_RESEARCH_POOL_BACKOFF_MS
+  process.env.ZEN_RESEARCH_POOL_BACKOFF_MS = '1'
+  try {
+    // Refusing on health alone would trade an intermittent failure for a permanent one — a
+    // collapsed pool still returns good results often enough to be worth trying.
+    const brief = await researchMarket({
+      ideaTitle: 'Rain', ideaDescription: 'Rainfall tracking.', db,
+      searchRunner: async () => {
+        probes += 1
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            engines_used: ['bing'],
+            engine_pool: { healthy: 1, total: 7, degraded: true },
+            engine_warnings: [],
+          }),
+        }
+      },
+      runner: async () => ({ exitCode: 0, stderr: '', stdout: JSON.stringify(TEST_RESEARCH) }),
+    })
+
+    assert.equal(probes, 3, 'the wait must be bounded')
+    assert.ok(brief.competitors.length > 0, 'and research must still run')
+  } finally {
+    process.env.ZEN_RESEARCH_POOL_BACKOFF_MS = previousBackoff
     closeOrchestratorDb()
   }
 })

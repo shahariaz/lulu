@@ -60,12 +60,12 @@ export function ActionBar({
   }
 
   return (
-    <div className="h-14 border-t border-border bg-card/80 px-6 flex items-center justify-between backdrop-blur-sm z-20">
+    <div className="z-20 flex min-h-14 items-center justify-between gap-2 border-t border-border bg-white/90 px-4 backdrop-blur-xl sm:px-7">
       {/* Left: Active Task Context */}
       <div className="flex items-center gap-3">
         {task ? (
           <>
-            <span className="text-xs font-semibold text-foreground truncate max-w-[280px]">
+            <span className="hidden text-xs font-semibold text-foreground truncate max-w-[280px] sm:inline">
               Task: {task.title}
             </span>
             <Badge variant={task.status.toLowerCase() as any}>{task.status}</Badge>
@@ -121,13 +121,13 @@ export function ActionBar({
       {/* Changes Request Feedback Modal */}
       {showRejectModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-lg p-5 max-w-md w-full shadow-xl flex flex-col gap-3">
+          <div className="flex w-full max-w-md flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xl">
             <h3 className="text-sm font-bold">Request Task Changes & Corrections</h3>
             <p className="text-xs text-muted">
               Provide feedback notes for the worker agent. The task will transition back to In Progress and the worker will refine the implementation.
             </p>
             <textarea
-              className="w-full h-24 p-2.5 rounded border border-border bg-black/30 text-xs text-foreground placeholder:text-muted focus:outline-none focus:border-accent"
+              className="h-24 w-full rounded-xl border border-border bg-white p-3 text-xs text-foreground shadow-inner placeholder:text-muted focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/10"
               placeholder="Explain the required fixes, edge cases, or test changes..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}

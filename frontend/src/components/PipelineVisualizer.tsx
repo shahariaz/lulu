@@ -35,8 +35,8 @@ export function PipelineVisualizer({ currentStage }: PipelineVisualizerProps) {
   }, [currentStage])
 
   return (
-    <div ref={containerRef} className="w-full bg-card/60 border border-border/80 rounded-lg p-3.5 mb-4 backdrop-blur-sm">
-      <div className="flex items-center justify-between relative">
+    <div ref={containerRef} role="region" tabIndex={0} aria-label="Task delivery stages" className="mb-4 w-full overflow-x-auto rounded-lg border border-border bg-white px-5 py-3.5 focus:outline-none focus:ring-2 focus:ring-accent/20">
+      <div className="flex min-w-[680px] items-center justify-between relative">
         {STAGES.map((stage, idx) => {
           const isPast = currentIndex > idx
           const isCurrent = currentIndex === idx
@@ -49,25 +49,26 @@ export function PipelineVisualizer({ currentStage }: PipelineVisualizerProps) {
                 {isCurrent && (
                   <div
                     ref={glowRef}
-                    className="absolute -inset-1 rounded-full bg-accent/30 filter blur-sm pointer-events-none"
+                    className="pointer-events-none absolute -inset-1 rounded-md bg-accent/10"
                   />
                 )}
                 <motion.div
+                  aria-hidden="true"
                   initial={false}
                   animate={{
                     scale: isCurrent ? 1.15 : 1,
                     backgroundColor: isPast
-                      ? '#238636'
+                      ? '#0e9f6e'
                       : isCurrent
-                      ? (isBlocked ? '#f85149' : '#58a6ff')
-                      : '#161b22',
+                      ? (isBlocked ? '#dc3545' : '#3157d5')
+                      : '#eef2f8',
                     borderColor: isPast
-                      ? '#2ea043'
+                      ? '#34d399'
                       : isCurrent
-                      ? (isBlocked ? '#f85149' : '#79c0ff')
-                      : '#30363d',
+                      ? (isBlocked ? '#dc3545' : '#6f88dc')
+                      : '#dce3ee',
                   }}
-                  className="w-7 h-7 rounded-full border-2 flex items-center justify-center text-[11px] font-bold text-white shadow-md transition-colors"
+                  className={`flex h-7 w-7 items-center justify-center rounded-md border text-[10px] font-semibold transition-colors ${isPast || isCurrent ? 'text-white' : 'text-muted'}`}
                 >
                   {isPast ? '✓' : idx + 1}
                 </motion.div>
@@ -82,12 +83,12 @@ export function PipelineVisualizer({ currentStage }: PipelineVisualizerProps) {
 
               {/* Connecting Line */}
               {idx < STAGES.length - 1 && (
-                <div className="flex-1 h-0.5 mx-1 bg-border relative overflow-hidden">
+                <div className="relative mx-2 h-px flex-1 overflow-hidden bg-border">
                   <motion.div
                     initial={false}
                     animate={{
                       width: isPast ? '100%' : isCurrent ? '50%' : '0%',
-                      backgroundColor: isPast ? '#2ea043' : '#58a6ff',
+                      backgroundColor: isPast ? '#0e9f6e' : '#3157d5',
                     }}
                     className="h-full"
                     transition={{ duration: 0.4 }}

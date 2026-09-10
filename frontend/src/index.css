@@ -4,25 +4,29 @@
 
 @layer base {
   :root {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 6.5%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 91.2% 59.8%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    --background: 218 44% 97%;
+    --foreground: 220 37% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 37% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 37% 15%;
+    --primary: 243 100% 68%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 218 35% 93%;
+    --secondary-foreground: 220 37% 15%;
+    --muted: 218 35% 93%;
+    --muted-foreground: 216 16% 48%;
+    --accent: 243 100% 68%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 355 70% 54%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 216 32% 90%;
+    --input: 216 32% 90%;
+    --ring: 243 100% 68%;
+  }
+
+  body {
+    background: #f5f5f3;
   }
 }
 
@@ -36,10 +40,10 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #30363d;
+  background: #c9c9c5;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #58a6ff;
+  background: #8b8b86;
 }

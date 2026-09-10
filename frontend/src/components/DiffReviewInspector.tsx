@@ -105,7 +105,7 @@ export function DiffReviewInspector({
             <span className="text-[10px] font-mono text-muted">Fast-Forward Candidate</span>
           </CardTitle>
         </CardHeader>
-        <div className="bg-[#070a0f] border border-border rounded p-3 font-mono text-[11px] overflow-x-auto whitespace-pre leading-relaxed flex-1 max-h-[400px]">
+        <div role="region" tabIndex={0} aria-label="Candidate unified diff" className="bg-[#070a0f] border border-border rounded p-3 font-mono text-[11px] overflow-x-auto whitespace-pre leading-relaxed flex-1 max-h-[400px]">
           {diffPatch ? (
             diffPatch.split('\n').map((line, idx) => {
               const isAdd = line.startsWith('+') && !line.startsWith('+++')

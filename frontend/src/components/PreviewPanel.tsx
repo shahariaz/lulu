@@ -3,6 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from './ui/Card'
 import { Button } from './ui/Button'
 import { Badge } from './ui/Badge'
 import type { Task } from '../types'
+import { api } from '../lib/api'
 
 interface PreviewPanelProps {
   task: Task | null
@@ -31,8 +32,7 @@ export function PreviewPanel({ task }: PreviewPanelProps) {
   const checkStatus = async () => {
     if (!task) return
     try {
-      const res = await fetch(`/api/orchestrator/tasks/${task.id}/preview/status`)
-      const data = await res.json()
+      const data = await api.getPreview(task.id)
       if (data.session) {
         setPreviewStatus(data.session.status)
         setPreviewUrl(data.session.url)
@@ -51,11 +51,7 @@ export function PreviewPanel({ task }: PreviewPanelProps) {
     if (!task) return
     setLoading(true)
     try {
-      const res = await fetch(`/api/orchestrator/tasks/${task.id}/preview/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      })
-      const data = await res.json()
+      const data = await api.startPreview(task.id)
       if (data.session) {
         setPreviewStatus(data.session.status)
         setPreviewUrl(data.session.url)
@@ -71,10 +67,7 @@ export function PreviewPanel({ task }: PreviewPanelProps) {
     if (!task) return
     setLoading(true)
     try {
-      await fetch(`/api/orchestrator/tasks/${task.id}/preview/stop`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      })
+      await api.stopPreview(task.id)
       setPreviewStatus('STOPPED')
       setPreviewUrl(null)
     } catch (err: any) {

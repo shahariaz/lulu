@@ -4,6 +4,7 @@ import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Badge } from './ui/Badge'
 import type { Project, Milestone, Task } from '../types'
+import { api } from '../lib/api'
 
 interface EpicProgress {
   epicId: string
@@ -36,12 +37,10 @@ export function EpicPlannerView({ project, tasks }: EpicPlannerViewProps) {
     if (!project) return
     setLoading(true)
     try {
-      const epicsRes = await fetch(`/api/orchestrator/projects/${project.id}/epics`)
-      const epicsData = await epicsRes.json()
+      const epicsData = await api.listEpics(project.id)
       setEpics(epicsData.epics || [])
 
-      const sprintsRes = await fetch(`/api/orchestrator/projects/${project.id}/sprints`)
-      const sprintsData = await sprintsRes.json()
+      const sprintsData = await api.listSprints(project.id)
       setSprints(sprintsData.sprints || [])
     } catch (err) {
       console.error(err)
@@ -54,11 +53,7 @@ export function EpicPlannerView({ project, tasks }: EpicPlannerViewProps) {
     e.preventDefault()
     if (!project || !sprintName.trim()) return
     try {
-      await fetch(`/api/orchestrator/projects/${project.id}/sprints`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: sprintName.trim(), goal: sprintGoal.trim() }),
-      })
+      await api.createSprint(project.id, { name: sprintName.trim(), goal: sprintGoal.trim() })
       setSprintName('')
       setSprintGoal('')
       loadEpicsAndSprints()

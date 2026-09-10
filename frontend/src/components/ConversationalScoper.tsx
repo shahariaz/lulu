@@ -33,19 +33,8 @@ export function ConversationalScoper({
       const { session } = await api.startScoping(project.id, featureTitle, prompt)
       setConversationId(session.id)
       setMessages(session.messages.filter((m: any) => m.role !== 'system'))
-
-      // Synthesize initial PRD draft
-      const draftText = `# Feature PRD: ${featureTitle}
-## Executive Summary
-${prompt || 'Requirements definition in progress...'}
-
-## Functional Requirements
-- REQ-F-01: Initial functional requirement
-- REQ-F-02: Automated unit tests
-
-## Nonfunctional Requirements
-- REQ-NF-01: Execution latency within targets.`
-      setSpecDraft(draftText)
+      const architectDraft = [...session.messages].reverse().find((m: any) => m.role === 'assistant')?.content || ''
+      if (/REQ-[A-Z0-9_-]+/.test(architectDraft)) setSpecDraft(architectDraft)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -63,6 +52,8 @@ ${prompt || 'Requirements definition in progress...'}
     try {
       const { session } = await api.sendScopingMessage(conversationId, userMsg)
       setMessages(session.messages.filter((m: any) => m.role !== 'system'))
+      const architectDraft = [...session.messages].reverse().find((m: any) => m.role === 'assistant')?.content || ''
+      if (/REQ-[A-Z0-9_-]+/.test(architectDraft)) setSpecDraft(architectDraft)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -187,6 +178,15 @@ ${prompt || 'Requirements definition in progress...'}
             value={specDraft}
             onChange={(e) => setSpecDraft(e.target.value)}
           />
+
+          <div className="mt-2 flex justify-end">
+            <Button variant="ghost" size="sm" onClick={() => {
+              const latest = [...messages].reverse().find((message) => message.role === 'assistant')
+              if (latest) setSpecDraft(latest.content)
+            }} disabled={!messages.some((message) => message.role === 'assistant')}>
+              Use latest Architect response
+            </Button>
+          </div>
 
           <div className="flex items-center justify-between pt-3 mt-3 border-t border-border">
             <span className="text-[11px] text-muted font-mono">

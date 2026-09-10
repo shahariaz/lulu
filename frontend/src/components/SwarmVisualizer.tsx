@@ -3,13 +3,15 @@ import { Card, CardHeader, CardTitle, CardContent } from './ui/Card'
 import { Button } from './ui/Button'
 import { Badge } from './ui/Badge'
 import type { Task, Project } from '../types'
+import { api } from '../lib/api'
 
 interface SwarmVisualizerProps {
   project: Project | null
   tasks: Task[]
+  refreshToken?: number
 }
 
-export function SwarmVisualizer({ project, tasks }: SwarmVisualizerProps) {
+export function SwarmVisualizer({ project, tasks, refreshToken = 0 }: SwarmVisualizerProps) {
   const [metrics, setMetrics] = useState<any>(null)
   const [mergeQueueInfo, setMergeQueueInfo] = useState<any>(null)
   const [loading, setLoading] = useState(false)
@@ -17,14 +19,11 @@ export function SwarmVisualizer({ project, tasks }: SwarmVisualizerProps) {
 
   useEffect(() => {
     loadMetrics()
-    const timer = setInterval(loadMetrics, 3000)
-    return () => clearInterval(timer)
-  }, [])
+  }, [refreshToken])
 
   const loadMetrics = async () => {
     try {
-      const res = await fetch('/api/orchestrator/swarm/metrics')
-      const data = await res.json()
+      const data = await api.getSwarmMetrics()
       setMetrics(data.metrics)
       setMergeQueueInfo({
         length: data.mergeQueueLength,
@@ -38,12 +37,7 @@ export function SwarmVisualizer({ project, tasks }: SwarmVisualizerProps) {
     const milestoneId = tasks[0].milestone_id
     setLoading(true)
     try {
-      const res = await fetch(`/api/orchestrator/milestones/${milestoneId}/schedule-swarm`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ maxConcurrency: 3 }),
-      })
-      const data = await res.json()
+      const data = await api.scheduleSwarm(milestoneId, 3)
       setScheduleResult(data)
       loadMetrics()
     } catch (err: any) {

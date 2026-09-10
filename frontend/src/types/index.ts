@@ -41,6 +41,7 @@ export interface Project {
   repo_path: string
   active_branch: string
   created_at: number
+  autonomy_mode: 'GUIDED' | 'SUPERVISED' | 'AUTONOMOUS'
 }
 
 export interface Inspection {
@@ -89,8 +90,51 @@ export interface Task {
   created_at: number
   updated_at: number
   epic_id?: string | null
+  feature_id?: string | null
   sprint_id?: string | null
   linked_requirement_ids?: string[]
+  acceptance_criteria?: string[]
+}
+
+export interface Feature {
+  id: string
+  epic_id: string
+  project_id: string
+  title: string
+  description: string
+  acceptance_criteria: string[]
+  linked_requirement_ids: string[]
+  status: 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
+}
+
+export interface EpicProgress {
+  epicId: string
+  title: string
+  status: string
+  totalTasks: number
+  completedTasks: number
+  progressPercentage: number
+}
+
+export interface WorkspacePayload {
+  project: Project
+  inspection: Inspection
+  activeBaseline: RequirementsBaseline | null
+  baselines: RequirementsBaseline[]
+  milestones: Milestone[]
+  epics: any[]
+  features: Feature[]
+  tasks: Task[]
+}
+
+export interface TaskDetails {
+  task: Task
+  runs: TaskRun[]
+  candidateCommitSha: string | null
+  diffPatch: string | null
+  verificationResult: VerificationResult | null
+  reviewRecord: ReviewRecord | null
+  acceptanceRecord: AcceptanceRecord | null
 }
 
 export interface TaskRun {

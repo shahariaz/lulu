@@ -3,6 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from './ui/Card'
 import { Button } from './ui/Button'
 import { Badge } from './ui/Badge'
 import type { Project, RequirementsBaseline } from '../types'
+import { api } from '../lib/api'
 
 interface SpecDiffViewerProps {
   project: Project | null
@@ -27,9 +28,12 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
   const loadBaselines = async () => {
     if (!project) return
     try {
-      const res = await fetch(`/api/orchestrator/projects/${project.id}`)
-      const data = await res.json()
-      // We can load baselines from the project
+      const data = await api.getProject(project.id)
+      setBaselines(data.baselines || [])
+      if (data.baselines?.length >= 2) {
+        setBaseId1(data.baselines[1].id)
+        setBaseId2(data.baselines[0].id)
+      }
     } catch {}
   }
 
@@ -37,22 +41,12 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
     if (!baseId1 || !baseId2) return
     setLoading(true)
     try {
-      const res = await fetch(`/api/orchestrator/baselines/${baseId1}/diff/${baseId2}`)
-      const data = await res.json()
+      const data = await api.diffBaselines(baseId1, baseId2)
       setChangelog(data.changelog || '')
       setDiffResult(data.diffResult)
 
       // Run scope impact analysis
-      const impRes = await fetch('/api/orchestrator/baselines/scope-impact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: project?.id,
-          previousBaselineId: baseId1,
-          newBaselineId: baseId2,
-        }),
-      })
-      const impData = await impRes.json()
+      const impData = await api.analyzeScopeImpact(project!.id, baseId1, baseId2)
       setImpactReport(impData.report)
     } catch (err: any) {
       alert(`Diff failed: ${err.message}`)
@@ -65,15 +59,7 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
     if (!impactReport || !project) return
     setLoading(true)
     try {
-      const res = await fetch('/api/orchestrator/baselines/apply-impact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: project.id,
-          impactReport,
-        }),
-      })
-      const data = await res.json()
+      const data = await api.applyScopeImpact(project.id, impactReport)
       setAppliedCount(data.affectedCount)
       alert(`Scope impact successfully applied! ${data.affectedCount} task(s) flagged for rework.`)
     } catch (err: any) {
@@ -103,19 +89,17 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
         </CardHeader>
 
         <div className="flex items-center gap-2 mb-3">
-          <input
+          <select
             className="flex-1 px-3 py-1.5 rounded border border-border bg-black/30 font-mono text-xs text-foreground"
-            placeholder="Previous Baseline ID (v1.0.0)"
             value={baseId1}
             onChange={(e) => setBaseId1(e.target.value)}
-          />
+          ><option value="">Previous baseline</option>{baselines.map(base => <option key={base.id} value={base.id}>{base.version} · {base.status}</option>)}</select>
           <span className="text-xs text-muted">&rarr;</span>
-          <input
+          <select
             className="flex-1 px-3 py-1.5 rounded border border-border bg-black/30 font-mono text-xs text-foreground"
-            placeholder="New Baseline ID (v1.1.0)"
             value={baseId2}
             onChange={(e) => setBaseId2(e.target.value)}
-          />
+          ><option value="">New baseline</option>{baselines.map(base => <option key={base.id} value={base.id}>{base.version} · {base.status}</option>)}</select>
           <Button variant="primary" size="sm" onClick={handleRunDiff} disabled={loading || !baseId1 || !baseId2}>
             Diff Baselines
           </Button>

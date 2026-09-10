@@ -290,14 +290,27 @@ export function App() {
             <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-zinc-900 text-xs font-bold text-white lg:hidden">
               Z
             </div>
-            <div className="min-w-0">
-              <div className="text-[10px] font-semibold text-[#ea3a12]">
-                {tabMeta.eyebrow}
+            {currentTab === 'studio' ? (
+              <div className="min-w-0 flex items-center gap-2">
+                <div className="text-xs font-semibold text-zinc-900 flex items-center gap-1.5">
+                  <span className="text-zinc-400">Discovery</span>
+                  <span className="text-zinc-300">/</span>
+                  <span className="text-zinc-900 font-bold">{activeProject?.name || 'Idea studio'}</span>
+                </div>
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                  Active session
+                </span>
               </div>
-              <div className="truncate text-sm font-semibold text-zinc-900">
-                {activeProject?.name || 'Claude-Zen workspace'}
+            ) : (
+              <div className="min-w-0">
+                <div className="text-[10px] font-semibold text-[#ea3a12]">
+                  {tabMeta.eyebrow}
+                </div>
+                <div className="truncate text-sm font-semibold text-zinc-900">
+                  {activeProject?.name || 'Claude-Zen workspace'}
+                </div>
               </div>
-            </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {activeProject && (
@@ -347,38 +360,40 @@ export function App() {
           ))}
         </nav>
 
-        {/* Section Title & KPI Matrix */}
-        <section className="flex items-center justify-between gap-6 border-b border-zinc-200 bg-white px-5 py-3.5 shrink-0">
-          <div className="min-w-0">
-            <p className="text-[11px] font-medium text-[#ea3a12] leading-none mb-1">
-              Section {tabMeta.num} · {tabMeta.eyebrow}
-            </p>
-            <h1 className="text-xl font-bold tracking-tight text-zinc-900 leading-tight">
-              {tabMeta.title}
-            </h1>
-            <p className="text-xs text-zinc-500 truncate max-w-2xl mt-0.5">
-              {tabMeta.description}
-            </p>
-          </div>
-          {currentTab === 'board' && (
-            <div className="hidden shrink-0 grid-cols-3 divide-x divide-zinc-200 rounded-lg border border-zinc-200 bg-white shadow-2xs md:grid overflow-hidden">
-              <div className="px-4 py-1.5 bg-white">
-                <div className="text-[10px] font-medium text-zinc-500">Tasks</div>
-                <div className="text-base font-bold font-mono leading-tight text-zinc-900">{tasks.length}</div>
-              </div>
-              <div className="px-4 py-1.5 bg-white">
-                <div className="text-[10px] font-medium text-zinc-500">Done</div>
-                <div className="text-base font-bold font-mono text-emerald-600 leading-tight">{completedTasks}</div>
-              </div>
-              <div className="px-4 py-1.5 bg-white">
-                <div className="text-[10px] font-medium text-zinc-500">Attention</div>
-                <div className={`text-base font-bold font-mono leading-tight ${attentionTasks > 0 ? 'text-[#ea3a12]' : 'text-zinc-400'}`}>
-                  {attentionTasks}
+        {/* Section Title & KPI Matrix: Hidden for Idea Studio to provide full vertical space */}
+        {currentTab !== 'studio' && (
+          <section className="flex items-center justify-between gap-6 border-b border-zinc-200 bg-white px-5 py-3.5 shrink-0">
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium text-[#ea3a12] leading-none mb-1">
+                Section {tabMeta.num} · {tabMeta.eyebrow}
+              </p>
+              <h1 className="text-xl font-bold tracking-tight text-zinc-900 leading-tight">
+                {tabMeta.title}
+              </h1>
+              <p className="text-xs text-zinc-500 truncate max-w-2xl mt-0.5">
+                {tabMeta.description}
+              </p>
+            </div>
+            {currentTab === 'board' && (
+              <div className="hidden shrink-0 grid-cols-3 divide-x divide-zinc-200 rounded-lg border border-zinc-200 bg-white shadow-2xs md:grid overflow-hidden">
+                <div className="px-4 py-1.5 bg-white">
+                  <div className="text-[10px] font-medium text-zinc-500">Tasks</div>
+                  <div className="text-base font-bold font-mono leading-tight text-zinc-900">{tasks.length}</div>
+                </div>
+                <div className="px-4 py-1.5 bg-white">
+                  <div className="text-[10px] font-medium text-zinc-500">Done</div>
+                  <div className="text-base font-bold font-mono text-emerald-600 leading-tight">{completedTasks}</div>
+                </div>
+                <div className="px-4 py-1.5 bg-white">
+                  <div className="text-[10px] font-medium text-zinc-500">Attention</div>
+                  <div className={`text-base font-bold font-mono leading-tight ${attentionTasks > 0 ? 'text-[#ea3a12]' : 'text-zinc-400'}`}>
+                    {attentionTasks}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </section>
+            )}
+          </section>
+        )}
 
         {error && (
           <div role="alert" className="border-b border-rose-200 bg-rose-50 px-5 py-2.5 text-xs font-medium text-rose-700 flex items-center justify-between shrink-0">

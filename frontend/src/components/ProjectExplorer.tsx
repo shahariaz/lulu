@@ -4,6 +4,7 @@ import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Badge } from './ui/Badge'
 import { formatSha, timeAgo } from '../lib/utils'
+import { api } from '../lib/api'
 import type { Project, Inspection } from '../types'
 
 interface ProjectExplorerProps {
@@ -23,6 +24,7 @@ export function ProjectExplorer({
 }: ProjectExplorerProps) {
   const [repoPath, setRepoPath] = useState('')
   const [projectName, setProjectName] = useState('')
+  const [mode, setMode] = useState<'create' | 'connect'>('create')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -32,7 +34,13 @@ export function ProjectExplorer({
     setLoading(true)
     setError(null)
     try {
-      await onImportProject(repoPath.trim(), projectName.trim() || undefined)
+      const isNew = mode === 'create'
+      const { project } = await api.createProject({
+        repoPath: repoPath.trim(),
+        name: projectName.trim() || undefined,
+        initNew: isNew,
+      })
+      await onSelectProject(project)
       setRepoPath('')
       setProjectName('')
     } catch (err: any) {
@@ -154,47 +162,90 @@ export function ProjectExplorer({
         )}
       </div>
 
-      {/* Right: Import New Repository Form */}
+      {/* Right: Import / Create New Repository Form */}
       <div className="flex flex-col h-full overflow-hidden bg-white">
         <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3.5 bg-white shrink-0">
-          <span className="font-semibold text-zinc-900 text-xs tracking-tight">Connect repository</span>
+          <span className="font-semibold text-zinc-900 text-xs tracking-tight">
+            {mode === 'create' ? 'Create new repository' : 'Connect repository'}
+          </span>
           <span className="text-[11px] font-mono text-zinc-400">Local workspace</span>
         </div>
 
         <div className="p-5 flex-1 overflow-y-auto flex flex-col justify-between">
-          <form onSubmit={handleImport} className="flex flex-col gap-4">
-            <div className="border border-zinc-200 bg-zinc-50/70 p-3.5 rounded-lg text-xs">
-              <span className="font-semibold text-[#ea3a12] block mb-1">Workspace isolation</span>
-              <p className="text-zinc-600 text-[11px] leading-relaxed">
-                Connect an absolute filesystem path. Claude-Zen scans git status and executes all tasks in isolated worktrees without altering your root branch.
-              </p>
+          <div className="flex flex-col gap-4">
+            {/* Mode Switcher */}
+            <div className="flex rounded-lg border border-zinc-200 bg-zinc-50 p-0.5 gap-0.5">
+              <button
+                type="button"
+                onClick={() => { setMode('create'); setError(null) }}
+                className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  mode === 'create' ? 'bg-white text-zinc-900 shadow-2xs font-semibold' : 'text-zinc-500 hover:text-zinc-800'
+                }`}
+              >
+                ✨ Create fresh
+              </button>
+              <button
+                type="button"
+                onClick={() => { setMode('connect'); setError(null) }}
+                className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  mode === 'connect' ? 'bg-white text-zinc-900 shadow-2xs font-semibold' : 'text-zinc-500 hover:text-zinc-800'
+                }`}
+              >
+                📁 Connect existing
+              </button>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-zinc-700 mb-1">
-                Local filesystem path
-              </label>
-              <Input
-                placeholder="/Users/username/projects/my-repo"
-                value={repoPath}
-                onChange={(e) => setRepoPath(e.target.value)}
-                className="font-mono text-xs"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-zinc-700 mb-1">
-                Repository name (optional)
-              </label>
-              <Input
-                placeholder="e.g. Core API service"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-              />
-            </div>
-            {error && <p className="text-xs font-medium text-[#ea3a12]">{error}</p>}
-            <Button variant="primary" type="submit" disabled={loading || !repoPath.trim()} className="w-full">
-              {loading ? 'Validating repository...' : 'Connect & scan repository'}
-            </Button>
-          </form>
+
+            <form onSubmit={handleImport} className="flex flex-col gap-4">
+              <div className="border border-zinc-200 bg-zinc-50/70 p-3.5 rounded-lg text-xs">
+                <span className="font-semibold text-[#ea3a12] block mb-1">
+                  {mode === 'create' ? 'Fresh repository provisioning' : 'Workspace isolation'}
+                </span>
+                <p className="text-zinc-600 text-[11px] leading-relaxed">
+                  {mode === 'create'
+                    ? 'Initializes a fresh git repository, commits an initial README.md and .gitignore on the main branch, and sets up project tracking.'
+                    : 'Connect an absolute filesystem path. Claude-Zen scans git status and executes all tasks in isolated worktrees without altering your root branch.'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-zinc-700 mb-1">
+                  Repository name {mode === 'connect' && '(Optional)'}
+                </label>
+                <Input
+                  placeholder={mode === 'create' ? 'e.g. distributed-sentinel' : 'e.g. Core API service'}
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  required={mode === 'create'}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-zinc-700 mb-1">
+                  Local filesystem path
+                </label>
+                <Input
+                  placeholder="/Users/username/projects/my-repo"
+                  value={repoPath}
+                  onChange={(e) => setRepoPath(e.target.value)}
+                  className="font-mono text-xs"
+                  required
+                />
+                <p className="text-[11px] text-zinc-400 mt-1">
+                  {mode === 'create'
+                    ? 'Directory will be created if it does not exist.'
+                    : 'Folder must already be initialized with git.'}
+                </p>
+              </div>
+
+              {error && <p className="text-xs font-medium text-[#ea3a12] bg-rose-50 border border-rose-200 p-2.5 rounded-lg">{error}</p>}
+
+              <Button variant="primary" type="submit" disabled={loading || !repoPath.trim()} className="w-full">
+                {loading
+                  ? (mode === 'create' ? 'Initializing repository...' : 'Validating repository...')
+                  : (mode === 'create' ? 'Create & start' : 'Connect & scan repository')}
+              </Button>
+            </form>
+          </div>
 
           <div className="border-t border-zinc-100 pt-3 mt-6 text-[10px] text-zinc-400">
             Hermetic task containers require local git tracking.

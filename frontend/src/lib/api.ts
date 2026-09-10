@@ -19,7 +19,8 @@ const json = (value: unknown) => JSON.stringify(value)
 
 export const api = {
   listProjects: () => request<{ projects: Project[] }>('/api/orchestrator/projects'),
-  importProject: (repoPath: string, name?: string) => request<{ project: Project; inspection: Inspection }>('/api/orchestrator/projects', { method: 'POST', body: json({ repoPath, name }) }),
+  importProject: (repoPath: string, name?: string) => request<{ project: Project; inspection: Inspection }>('/api/orchestrator/projects', { method: 'POST', body: json({ repoPath, name, initNew: false }) }),
+  createProject: (params: { repoPath: string; name?: string; initNew?: boolean; forceDirty?: boolean }) => request<{ project: Project; inspection: Inspection }>('/api/orchestrator/projects', { method: 'POST', body: json(params) }),
   getProject: (id: string) => request<WorkspacePayload>(`/api/orchestrator/projects/${id}`),
   updateAutonomy: (id: string, autonomyMode: Project['autonomy_mode']) => request<{ project: Project }>(`/api/orchestrator/projects/${id}/autonomy`, { method: 'PATCH', body: json({ autonomyMode }) }),
 

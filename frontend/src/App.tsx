@@ -11,6 +11,7 @@ import { SwarmVisualizer } from './components/SwarmVisualizer'
 import { IdeaStudioView } from './components/IdeaStudioView'
 import { ActionBar } from './components/ActionBar'
 import { Button } from './components/ui/Button'
+import { Input } from './components/ui/Input'
 import {
   Activity, FolderGit2, GitCompareArrows, LayoutDashboard, MessageSquareText,
   MonitorPlay, Mountain, Plus, Radio, RefreshCw, ScanSearch, Sparkles, Workflow,
@@ -75,6 +76,38 @@ export function App() {
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Add/Create Repository Modal state
+  const [showAddRepoModal, setShowAddRepoModal] = useState(false)
+  const [addRepoMode, setAddRepoMode] = useState<'create' | 'connect'>('create')
+  const [modalRepoPath, setModalRepoPath] = useState('')
+  const [modalRepoName, setModalRepoName] = useState('')
+  const [modalLoading, setModalLoading] = useState(false)
+  const [modalError, setModalError] = useState<string | null>(null)
+
+  const handleAddRepoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!modalRepoPath.trim()) return
+    setModalLoading(true)
+    setModalError(null)
+    try {
+      const isNew = addRepoMode === 'create'
+      const { project } = await api.createProject({
+        repoPath: modalRepoPath.trim(),
+        name: modalRepoName.trim() || undefined,
+        initNew: isNew,
+      })
+      setProjects((prev) => [project, ...prev])
+      await selectProject(project)
+      setShowAddRepoModal(false)
+      setModalRepoPath('')
+      setModalRepoName('')
+    } catch (err: any) {
+      setModalError(err.message)
+    } finally {
+      setModalLoading(false)
+    }
+  }
 
   const clearTaskDetails = () => {
     setCandidateSha(null); setDiffPatch(null); setVerifResult(null); setReviewRecord(null)
@@ -223,9 +256,19 @@ export function App() {
             <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[#ea3a12]">
               <FolderGit2 size={12} strokeWidth={2} /> Active repository
             </div>
-            {projects.length > 1 && (
-              <span className="text-[10px] text-zinc-400 font-medium">Switch ▾</span>
-            )}
+            <div className="flex items-center gap-1.5">
+              {projects.length > 1 && (
+                <span className="text-[10px] text-zinc-400 font-medium">Switch ▾</span>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowAddRepoModal(true)}
+                className="p-0.5 rounded text-zinc-400 hover:text-zinc-800 hover:bg-zinc-200/60 transition-colors"
+                title="Create fresh repository or connect existing"
+              >
+                <Plus size={11} strokeWidth={2.5} />
+              </button>
+            </div>
           </div>
 
           <div className="relative">
@@ -380,7 +423,7 @@ export function App() {
             <Button
               aria-label="Add repository"
               size="sm"
-              onClick={() => setCurrentTab('projects')}
+              onClick={() => setShowAddRepoModal(true)}
             >
               <Plus size={13} strokeWidth={2.5} />
               <span className="hidden sm:inline">Add repo</span>
@@ -546,6 +589,113 @@ export function App() {
           onMergeFeature={handleMergeFeature}
         />}
       </main>
+
+      {/* Add / Create Repository Modal Dialog */}
+      {showAddRepoModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="flex w-full max-w-md flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-xl">
+            <div className="border-b border-zinc-100 pb-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-900">
+                  {addRepoMode === 'create' ? 'Create new repository' : 'Connect existing repository'}
+                </h3>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  {addRepoMode === 'create'
+                    ? 'Initialize a fresh git project in a local directory.'
+                    : 'Import and scan an existing git codebase on disk.'}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAddRepoModal(false)}
+                className="text-zinc-400 hover:text-zinc-700 text-sm font-bold p-1 rounded-md"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Mode Switcher */}
+            <div className="flex rounded-lg border border-zinc-200 bg-zinc-50 p-0.5 gap-0.5">
+              <button
+                type="button"
+                onClick={() => { setAddRepoMode('create'); setModalError(null) }}
+                className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  addRepoMode === 'create' ? 'bg-white text-zinc-900 shadow-2xs font-semibold' : 'text-zinc-500 hover:text-zinc-800'
+                }`}
+              >
+                ✨ Create fresh
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAddRepoMode('connect'); setModalError(null) }}
+                className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  addRepoMode === 'connect' ? 'bg-white text-zinc-900 shadow-2xs font-semibold' : 'text-zinc-500 hover:text-zinc-800'
+                }`}
+              >
+                📁 Connect existing
+              </button>
+            </div>
+
+            <form onSubmit={handleAddRepoSubmit} className="flex flex-col gap-3.5">
+              <div>
+                <label className="block text-xs font-medium text-zinc-700 mb-1">
+                  Repository name {addRepoMode === 'connect' && '(Optional)'}
+                </label>
+                <Input
+                  placeholder={addRepoMode === 'create' ? 'e.g. distributed-sentinel' : 'e.g. My Existing Service'}
+                  value={modalRepoName}
+                  onChange={(e) => setModalRepoName(e.target.value)}
+                  required={addRepoMode === 'create'}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-zinc-700 mb-1">
+                  Local filesystem path
+                </label>
+                <Input
+                  placeholder="/Users/username/projects/my-repo"
+                  value={modalRepoPath}
+                  onChange={(e) => setModalRepoPath(e.target.value)}
+                  className="font-mono text-xs"
+                  required
+                />
+                <p className="text-[11px] text-zinc-400 mt-1">
+                  {addRepoMode === 'create'
+                    ? 'Directory will be created if it does not exist. A main branch, README.md, and .gitignore will be committed automatically.'
+                    : 'Target folder must already have git initialized with a clean working tree.'}
+                </p>
+              </div>
+
+              {modalError && (
+                <p className="text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 p-2.5 rounded-lg">
+                  {modalError}
+                </p>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAddRepoModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={modalLoading || !modalRepoPath.trim()}
+                >
+                  {modalLoading
+                    ? (addRepoMode === 'create' ? 'Initializing...' : 'Connecting...')
+                    : (addRepoMode === 'create' ? 'Create & start' : 'Connect repository')}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

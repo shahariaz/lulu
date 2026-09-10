@@ -14,6 +14,7 @@ import {
 import {
   executeWorkerTask,
   buildWorkerPrompt,
+  aggregateUsageFromEvents,
 } from '../lib/orchestrator/worker-harness.mjs'
 import {
   getOrchestratorDb,
@@ -54,6 +55,65 @@ function createTempGitRepo(prefix = 'zen-repo-worker-') {
 
   return tmpDir
 }
+
+/**
+ * Token accounting regression tests.
+ *
+ * `executeWorkerTask` used to write literal `inputTokens: 100, outputTokens: 50` into every
+ * task_run, sitting directly beside the event stream that carries the real numbers. Any cost
+ * reporting built on that was fiction. These pin the aggregation to the CLI's actual
+ * `--output-format stream-json` shapes.
+ */
+
+test('aggregateUsageFromEvents prefers the terminal result total', () => {
+  const usage = aggregateUsageFromEvents([
+    { type: 'assistant', message: { usage: { input_tokens: 10, output_tokens: 5 } } },
+    { type: 'result', usage: { input_tokens: 1200, output_tokens: 340 } },
+  ])
+
+  assert.equal(usage.inputTokens, 1200)
+  assert.equal(usage.outputTokens, 340)
+  assert.equal(usage.isEstimated, false)
+})
+
+test('aggregateUsageFromEvents counts cache reads and writes as input', () => {
+  const usage = aggregateUsageFromEvents([
+    {
+      type: 'result',
+      usage: {
+        input_tokens: 100,
+        cache_creation_input_tokens: 2000,
+        cache_read_input_tokens: 8000,
+        output_tokens: 250,
+      },
+    },
+  ])
+
+  assert.equal(usage.inputTokens, 10100)
+  assert.equal(usage.outputTokens, 250)
+  assert.equal(usage.isEstimated, false)
+})
+
+test('aggregateUsageFromEvents accumulates per-turn usage when no result event exists', () => {
+  const usage = aggregateUsageFromEvents([
+    { type: 'assistant', message: { usage: { input_tokens: 500, output_tokens: 120 } } },
+    { type: 'message_delta', usage: { output_tokens: 80 } },
+    { type: 'assistant', message: { usage: { input_tokens: 640, output_tokens: 200 } } },
+  ])
+
+  assert.equal(usage.inputTokens, 1140)
+  assert.equal(usage.outputTokens, 400)
+  assert.equal(usage.isEstimated, false)
+})
+
+test('aggregateUsageFromEvents reports zero-and-estimated rather than inventing numbers', () => {
+  for (const events of [[], [{ type: 'system', subtype: 'init' }], undefined]) {
+    const usage = aggregateUsageFromEvents(events)
+    assert.equal(usage.inputTokens, 0)
+    assert.equal(usage.outputTokens, 0)
+    assert.equal(usage.isEstimated, true, 'missing usage must be flagged, not guessed')
+  }
+})
 
 test('assertPathWithinWorktree enforces strict path confinement', () => {
   const worktree = fs.mkdtempSync(path.join(os.tmpdir(), 'zen-worktree-conf-'))

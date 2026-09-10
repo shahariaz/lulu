@@ -13,7 +13,9 @@ import {
   getPreviewStatus,
   stopAllPreviewServers,
   waitForServerReady,
+  buildPreviewContainerArgs,
 } from '../lib/orchestrator/preview-manager.mjs'
+import { detectContainerEngine } from '../lib/orchestrator/container-runner.mjs'
 
 test('allocatePreviewPort and isPortAvailable manage pool ports cleanly', async () => {
   const port1 = await allocatePreviewPort()
@@ -25,6 +27,17 @@ test('allocatePreviewPort and isPortAvailable manage pool ports cleanly', async 
 
   releasePreviewPort(port1)
   releasePreviewPort(port2)
+})
+
+test('container previews mount only the worktree and expose loopback', () => {
+  const args = buildPreviewContainerArgs({
+    engine: 'docker', image: 'node:24-slim', worktreePath: '/tmp/preview-worktree',
+    hostPort: 41234, containerName: 'zen-preview-test', command: 'node', args: ['server.mjs'],
+  })
+  assert.ok(args.includes('/tmp/preview-worktree:/workspace:rw'))
+  assert.ok(args.includes('127.0.0.1:41234:41234'))
+  assert.ok(args.includes('no-new-privileges'))
+  assert.ok(!args.some((arg) => arg.includes('.ssh')))
 })
 
 test('startPreviewServer spawns dev server, waits for ready, and stops cleanly', async () => {
@@ -50,6 +63,7 @@ test('startPreviewServer spawns dev server, waits for ready, and stops cleanly',
     args: ['server.mjs'],
     port,
     timeoutMs: 5000,
+    tier: 'host',
   })
 
   assert.equal(session.taskId, 'task_prev_01')
@@ -84,4 +98,30 @@ test('startPreviewServer spawns dev server, waits for ready, and stops cleanly',
   assert.equal(portIsFree, true, 'Port must be freed after teardown')
 
   fs.rmSync(tmpDir, { recursive: true, force: true })
+})
+
+test('container preview serves a task without mounting the owner home', async (t) => {
+  const engine = detectContainerEngine()
+  if (!engine.available || !['docker', 'podman'].includes(engine.engine)) return t.skip('Docker or Podman not available')
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zen-prev-container-'))
+  fs.chmodSync(tmpDir, 0o755)
+  fs.writeFileSync(path.join(tmpDir, 'server.mjs'), `
+    import http from 'node:http'
+    http.createServer((req, res) => res.end('isolated preview')).listen(Number(process.env.PORT), '0.0.0.0')
+  `, { mode: 0o644 })
+  const session = await startPreviewServer({
+    taskId: `task_container_${Date.now()}`, worktreePath: tmpDir,
+    command: 'node', args: ['server.mjs'], tier: 'container', containerEngine: engine.engine,
+    timeoutMs: 15000,
+  })
+  try {
+    assert.equal(session.status, 'RUNNING')
+    assert.equal(session.tier, 'container')
+    const body = await new Promise((resolve, reject) => {
+      http.get(session.url, (res) => { let data = ''; res.on('data', (chunk) => data += chunk); res.on('end', () => resolve(data)) }).on('error', reject)
+    })
+    assert.equal(body, 'isolated preview')
+  } finally {
+    stopPreviewServer(session.taskId)
+  }
 })

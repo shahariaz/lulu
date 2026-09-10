@@ -7,20 +7,20 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 
 export function Badge({ className, variant = 'default', ...props }: BadgeProps) {
   const variants = {
-    default: 'border-border text-foreground bg-white/5',
-    ready: 'border-accent/40 text-accent bg-accent/10',
-    progress: 'border-warning/40 text-warning bg-warning/10',
-    checks: 'border-cyan-500/40 text-cyan-400 bg-cyan-500/10',
-    review: 'border-purple/40 text-purple bg-purple/10',
-    qa: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10',
-    done: 'border-success/40 text-success bg-success/10',
-    blocked: 'border-danger/40 text-danger bg-danger/10',
+    default: 'border-2 border-black text-black bg-swiss-gray',
+    ready: 'border-2 border-black text-black bg-white',
+    progress: 'border-2 border-black text-black bg-amber-200',
+    checks: 'border-2 border-black text-black bg-sky-200',
+    review: 'border-2 border-black text-white bg-purple-900',
+    qa: 'border-2 border-black text-black bg-emerald-200',
+    done: 'border-2 border-black text-white bg-emerald-700',
+    blocked: 'border-2 border-black text-white bg-swiss-red font-black',
   }
 
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors',
+        'inline-flex items-center rounded-none px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors select-none font-mono',
         variants[variant],
         className
       )}
@@ -28,3 +28,4 @@ export function Badge({ className, variant = 'default', ...props }: BadgeProps) 
     />
   )
 }
+

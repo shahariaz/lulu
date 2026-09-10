@@ -17,12 +17,14 @@
     "start": "./start.sh",
     "orchestrator": "node bin/zen-orchestrator",
     "build:ui": "cd frontend && npm install && npm run build",
-    "build:worker-image": "docker build -f docker/worker.Dockerfile -t claude-zen/worker:latest ."
+    "build:worker-image": "docker build -f docker/worker.Dockerfile -t claude-zen/worker:latest .",
+    "test:contract": "node --test --test-timeout=300000 test/contract/*.contract.mjs"
   },
   "comments": {
     "test": "The test/*.test.mjs glob is required. `node --test test/` resolves 'test/' as a module path on Node 24 and dies with MODULE_NOT_FOUND.",
-    "setup": "Run `npm install` (or `npm ci`) before starting the orchestrator or running tests — lib/orchestrator's HTTP transport needs Hono. The gateways (zen-proxy/codex/antigravity) stay dependency-free and run from a bare checkout.",
-    "dependencies": "Hono is the HTTP transport boundary ONLY. Domain engines and SQLite repositories must remain framework-independent so they stay callable from tests, the CLI, and a future transport; see docs/orchestrator/current-architecture.md. Adding any further runtime dependency to lib/ is an architectural decision, not a convenience."
+    "setup": "Run `npm install` (or `npm ci`) before starting the orchestrator or running tests \u2014 lib/orchestrator's HTTP transport needs Hono. The gateways (zen-proxy/codex/antigravity) stay dependency-free and run from a bare checkout.",
+    "dependencies": "Hono is the HTTP transport boundary ONLY. Domain engines and SQLite repositories must remain framework-independent so they stay callable from tests, the CLI, and a future transport; see docs/orchestrator/current-architecture.md. Adding any further runtime dependency to lib/ is an architectural decision, not a convenience.",
+    "contract": "test/contract/ runs against the REAL gateway with no mock seam injected, and is deliberately excluded from `npm test` \u2014 it needs ./start.sh running and spends subscription quota. Every feature that talks to a model must have a contract test; test/contract-coverage.test.mjs enforces that mechanically. Three shipped defects were invisible to the mocked suite because the mock sat exactly where the bug was."
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",

@@ -8,21 +8,21 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'default', size = 'md', ...props }, ref) => {
-    const base = 'inline-flex items-center justify-center gap-1.5 font-semibold rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/15 disabled:pointer-events-none disabled:opacity-50'
+    const base = 'inline-flex items-center justify-center gap-2 font-bold uppercase tracking-wider transition-colors duration-150 ease-linear rounded-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-swiss-red focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40 disabled:cursor-not-allowed select-none active:translate-y-[1px]'
 
     const variants = {
-      default: 'bg-accent hover:bg-accent-hover border border-accent text-white shadow-sm',
-      primary: 'bg-success hover:bg-emerald-600 text-white border border-success shadow-sm',
-      secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-      outline: 'border border-border bg-white hover:bg-slate-50 text-foreground shadow-sm',
-      danger: 'bg-danger/15 hover:bg-danger/25 text-danger border border-danger/40',
-      ghost: 'hover:bg-slate-100 text-foreground',
+      default: 'bg-black text-white hover:bg-swiss-red hover:text-white border-2 border-black hover:border-swiss-red',
+      primary: 'bg-swiss-red text-white hover:bg-black border-2 border-swiss-red hover:border-black',
+      secondary: 'bg-white text-black border-2 border-black hover:bg-black hover:text-white',
+      outline: 'border-2 border-black bg-white hover:bg-swiss-gray text-black',
+      danger: 'bg-swiss-red text-white hover:bg-black border-2 border-black',
+      ghost: 'bg-transparent hover:bg-swiss-gray text-black border-2 border-transparent hover:border-black',
     }
 
     const sizes = {
-      sm: 'h-8 px-2.5 text-xs',
-      md: 'h-9 px-3.5 text-sm',
-      lg: 'h-10 px-5 text-sm',
+      sm: 'h-8 px-3 text-xs',
+      md: 'h-9 px-4 text-xs',
+      lg: 'h-11 px-6 text-sm',
     }
 
     return (
@@ -35,3 +35,4 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   }
 )
 Button.displayName = 'Button'
+

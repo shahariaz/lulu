@@ -31,27 +31,27 @@ import type {
 type TabType = 'board' | 'studio' | 'scoper' | 'projects' | 'diff' | 'preview' | 'epics' | 'specdiff' | 'swarm'
 
 const NAV_ITEMS = [
-  { id: 'board', label: 'Delivery', icon: LayoutDashboard },
-  { id: 'studio', label: 'Idea studio', icon: Sparkles },
-  { id: 'scoper', label: 'Scoper', icon: MessageSquareText },
-  { id: 'diff', label: 'Code review', icon: ScanSearch },
-  { id: 'preview', label: 'Live preview', icon: MonitorPlay },
-  { id: 'epics', label: 'Roadmap', icon: Mountain },
-  { id: 'specdiff', label: 'Spec changes', icon: GitCompareArrows },
-  { id: 'swarm', label: 'Agent swarm', icon: Workflow },
-  { id: 'projects', label: 'Repositories', icon: FolderGit2 },
+  { id: 'board', num: '01', label: 'Delivery', icon: LayoutDashboard },
+  { id: 'studio', num: '02', label: 'Idea studio', icon: Sparkles },
+  { id: 'scoper', num: '03', label: 'Scoper', icon: MessageSquareText },
+  { id: 'diff', num: '04', label: 'Code review', icon: ScanSearch },
+  { id: 'preview', num: '05', label: 'Live preview', icon: MonitorPlay },
+  { id: 'epics', num: '06', label: 'Roadmap', icon: Mountain },
+  { id: 'specdiff', num: '07', label: 'Spec changes', icon: GitCompareArrows },
+  { id: 'swarm', num: '08', label: 'Agent swarm', icon: Workflow },
+  { id: 'projects', num: '09', label: 'Repositories', icon: FolderGit2 },
 ] as const
 
-const TAB_TITLES: Record<TabType, { eyebrow: string; title: string; description: string }> = {
-  board: { eyebrow: 'Delivery', title: 'Delivery overview', description: 'Tasks, verification state, review evidence, and acceptance.' },
-  studio: { eyebrow: 'Discovery', title: 'Idea studio', description: 'Research, council discussion, and product blueprint.' },
-  scoper: { eyebrow: 'Requirements', title: 'Scope and baseline', description: 'Define and approve the versioned source of truth.' },
-  diff: { eyebrow: 'Review', title: 'Candidate review', description: 'Inspect the immutable diff and independent findings.' },
-  preview: { eyebrow: 'Preview', title: 'Runtime preview', description: 'Inspect the candidate inside its isolated environment.' },
-  epics: { eyebrow: 'Planning', title: 'Roadmap', description: 'Epics, features, dependencies, and sprint scope.' },
-  specdiff: { eyebrow: 'Changes', title: 'Specification changes', description: 'Compare baselines and affected delivery scope.' },
-  swarm: { eyebrow: 'Execution', title: 'Agent schedule', description: 'Workspace ownership and the safe execution plan.' },
-  projects: { eyebrow: 'Repositories', title: 'Repository workspace', description: 'Inspect and select a local delivery workspace.' },
+const TAB_TITLES: Record<TabType, { num: string; eyebrow: string; title: string; description: string }> = {
+  board: { num: '01', eyebrow: 'Delivery System', title: 'Delivery overview', description: 'Real-time task pipeline, hermetic verification, review records, and merge acceptance.' },
+  studio: { num: '02', eyebrow: 'Discovery Phase', title: 'Idea studio', description: 'Empirical research, architectural council discourse, and implementation blueprint.' },
+  scoper: { num: '03', eyebrow: 'Requirements Matrix', title: 'Scope and baseline', description: 'Deterministic specification authority and versioned contract verification.' },
+  diff: { num: '04', eyebrow: 'Inspection Pass', title: 'Candidate review', description: 'Immutable patch inspection, isolated test logs, and independent review verdicts.' },
+  preview: { num: '05', eyebrow: 'Runtime State', title: 'Live preview', description: 'Interactive candidate verification inside the container runtime environment.' },
+  epics: { num: '06', eyebrow: 'Milestone Matrix', title: 'Roadmap and epics', description: 'Structural feature breakdown, dependency graphs, and sprint boundaries.' },
+  specdiff: { num: '07', eyebrow: 'Delta Audit', title: 'Specification changes', description: 'Comparative audit between requirements baselines and current execution scope.' },
+  swarm: { num: '08', eyebrow: 'Execution Topology', title: 'Agent schedule', description: 'Hermetic workspace claims, agent allocation, and execution state.' },
+  projects: { num: '09', eyebrow: 'Workspace Registry', title: 'Repository workspace', description: 'Connected local repositories, inspection status, and delivery pipelines.' },
 }
 
 export function App() {
@@ -204,48 +204,200 @@ export function App() {
   const tabMeta = TAB_TITLES[currentTab]
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground font-sans">
-      <aside aria-label="Workspace navigation" className="relative hidden w-[232px] shrink-0 flex-col overflow-hidden border-r border-[#dededb] bg-[#efefec] text-foreground lg:flex">
-        <div className="relative flex h-20 items-center gap-3 px-5">
-          <div className="grid h-8 w-8 place-items-center rounded-md bg-[#20201f] text-xs font-bold text-white">Z</div>
-          <div><div className="text-sm font-bold tracking-[0.08em]">ZEN</div><div className="text-[10px] font-medium text-muted">Delivery workspace</div></div>
+    <div className="flex h-screen w-screen overflow-hidden bg-white text-black font-sans selection:bg-swiss-red selection:text-white">
+      <aside aria-label="Workspace navigation" className="relative hidden w-[250px] shrink-0 flex-col overflow-hidden border-r-2 border-black bg-white text-black lg:flex">
+        {/* Brand Header */}
+        <div className="relative flex h-20 items-center gap-3 border-b-2 border-black px-5 bg-white">
+          <div className="grid h-9 w-9 place-items-center rounded-none bg-black text-sm font-black text-white select-none">
+            Z
+          </div>
+          <div>
+            <div className="text-sm font-black tracking-wider uppercase text-black">CLAUDE·ZEN</div>
+            <div className="text-[9px] font-bold tracking-widest text-neutral-500 uppercase font-mono">DELIVERY SYSTEM</div>
+          </div>
         </div>
-        <div className="mx-3 rounded-lg border border-[#d5d5d1] bg-white p-3">
-          <div className="mb-2 flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.14em] text-muted"><FolderGit2 size={12} /> Active workspace</div>
-          <div className="truncate text-xs font-semibold">{activeProject?.name || 'No project selected'}</div>
-          <div className="mt-2 flex items-center justify-between text-[9px] text-muted"><span className="truncate font-mono">{activeProject?.repo_path || 'Import a repository'}</span><span className="ml-2 border-l border-border pl-2 font-mono">{activeProject?.active_branch || '—'}</span></div>
+
+        {/* Active Workspace Box */}
+        <div className="m-3 border-2 border-black bg-swiss-gray p-3 rounded-none">
+          <div className="mb-1.5 flex items-center gap-2 text-[9px] font-black uppercase tracking-wider text-swiss-red font-mono">
+            <FolderGit2 size={12} strokeWidth={2.5} /> [00] WORKSPACE
+          </div>
+          <div className="truncate text-xs font-black uppercase tracking-tight text-black">
+            {activeProject?.name || 'NO REPO SELECTED'}
+          </div>
+          <div className="mt-2 flex items-center justify-between border-t border-black/20 pt-1.5 text-[9px] font-mono text-neutral-700">
+            <span className="truncate max-w-[110px]" title={activeProject?.repo_path || ''}>
+              {activeProject?.repo_path?.split('/').pop() || 'NO REPO'}
+            </span>
+            <span className="ml-2 border-l border-black/30 pl-2 font-bold text-black">
+              {activeProject?.active_branch || '—'}
+            </span>
+          </div>
         </div>
-        <nav aria-label="Primary navigation" className="relative mt-5 flex flex-1 flex-col gap-1 px-3">
-          <div className="mb-1 px-3 text-[9px] font-bold uppercase tracking-[0.16em] text-muted">Workspace</div>
-          {NAV_ITEMS.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setCurrentTab(id)} className={`group flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs font-medium transition-colors ${currentTab === id ? 'bg-[#20201f] text-white' : 'text-[#5f5f5b] hover:bg-[#e4e4e0] hover:text-foreground'}`}><Icon size={15} strokeWidth={1.8} />{label}{id === 'board' && attentionTasks > 0 && <span className="ml-auto grid h-4 min-w-4 place-items-center rounded bg-warning px-1 text-[8px] font-bold text-white">{attentionTasks}</span>}</button>)}
+
+        {/* Nav Links */}
+        <nav aria-label="Primary navigation" className="relative mt-2 flex flex-1 flex-col gap-1 px-3 overflow-y-auto">
+          <div className="mb-1 px-2 text-[9px] font-black uppercase tracking-widest text-neutral-400 font-mono">
+            NAVIGATION INDEX
+          </div>
+          {NAV_ITEMS.map(({ id, num, label, icon: Icon }) => {
+            const isActive = currentTab === id
+            return (
+              <button
+                key={id}
+                onClick={() => setCurrentTab(id)}
+                className={`group flex w-full items-center gap-2.5 rounded-none px-3 py-2 text-left text-xs font-bold uppercase tracking-wider transition-colors duration-150 border-2 ${
+                  isActive
+                    ? 'bg-black text-white border-black'
+                    : 'bg-white text-black border-transparent hover:border-black hover:bg-swiss-gray'
+                }`}
+              >
+                <span className={`font-mono text-[10px] ${isActive ? 'text-swiss-red' : 'text-neutral-500'}`}>
+                  {num}
+                </span>
+                <Icon size={14} strokeWidth={isActive ? 2.5 : 2} className="shrink-0" />
+                <span className="truncate">{label}</span>
+                {id === 'board' && attentionTasks > 0 && (
+                  <span className="ml-auto grid h-4 min-w-4 place-items-center rounded-none bg-swiss-red px-1 text-[8px] font-black text-white font-mono border border-black">
+                    {attentionTasks}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </nav>
-        <div className="mx-3 mb-3 border-t border-border px-2 pt-3"><div className="flex items-center gap-2 text-[10px] font-medium text-foreground"><Activity size={13} /> Safety boundary active</div><p className="mt-1 text-[9px] leading-relaxed text-muted">Container execution · approved specs · immutable evidence</p></div>
-        <div className="flex items-center justify-between border-t border-border px-5 py-3 text-[10px] text-muted"><span>Sequential writer</span><span className={`flex items-center gap-1.5 font-medium ${connectionState === 'live' ? 'text-success' : 'text-warning'}`}><Radio size={11} /> {connectionState === 'live' ? 'Live' : 'Connecting'}</span></div>
+
+        {/* System Boundary & Connection Status Footer */}
+        <div className="border-t-2 border-black bg-swiss-gray p-3 text-[10px]">
+          <div className="flex items-center gap-2 font-bold uppercase tracking-wider text-black">
+            <Activity size={13} strokeWidth={2.5} className="text-swiss-red" />
+            <span>HERMETIC BOUNDARY</span>
+          </div>
+          <p className="mt-1 text-[9px] font-medium leading-tight text-neutral-600">
+            ISOLATED RUNTIME · VERIFIED AUDIT
+          </p>
+        </div>
+        <div className="flex items-center justify-between border-t border-black bg-white px-4 py-2.5 text-[10px] font-mono">
+          <span className="font-semibold text-neutral-600 uppercase">DISPATCHER</span>
+          <span className={`flex items-center gap-1.5 font-bold uppercase ${connectionState === 'live' ? 'text-emerald-700' : 'text-amber-700'}`}>
+            <span className={`h-2 w-2 rounded-none border border-black ${connectionState === 'live' ? 'bg-emerald-600' : 'bg-amber-500 animate-pulse'}`} />
+            {connectionState === 'live' ? 'ONLINE' : 'SYNCING'}
+          </span>
+        </div>
       </aside>
 
       {/* Main Content Area */}
-      <main className="min-w-0 flex-1 flex flex-col overflow-hidden">
-        <header className="flex min-h-16 items-center justify-between border-b border-border/80 bg-white/80 px-4 backdrop-blur-xl sm:px-7">
-          <div className="flex min-w-0 items-center gap-3"><div className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-[#20201f] text-xs font-bold text-white lg:hidden">Z</div><div className="min-w-0"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-accent">{tabMeta.eyebrow}</div><div className="truncate text-sm font-semibold text-foreground">{activeProject?.name || 'Claude-Zen workspace'}</div></div></div>
+      <main className="min-w-0 flex-1 flex flex-col overflow-hidden bg-white">
+        {/* Top Control Bar */}
+        <header className="flex min-h-16 items-center justify-between border-b-2 border-black bg-white px-4 sm:px-7">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-none bg-black text-xs font-black text-white lg:hidden">
+              Z
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-black uppercase tracking-widest text-swiss-red font-mono">
+                [{tabMeta.num}] {tabMeta.eyebrow}
+              </div>
+              <div className="truncate text-sm font-black uppercase tracking-tight text-black">
+                {activeProject?.name || 'CLAUDE-ZEN WORKSPACE'}
+              </div>
+            </div>
+          </div>
           <div className="flex items-center gap-2">
-            {activeProject && <select aria-label="Autonomy mode" value={activeProject.autonomy_mode || 'GUIDED'} onChange={(event) => handleAutonomyChange(event.target.value as Project['autonomy_mode'])} className="max-w-[180px] rounded-md border border-border bg-white px-3 py-2 text-[10px] font-semibold text-foreground outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/10"><option value="GUIDED">Guided control</option><option value="SUPERVISED">Supervised flow</option><option value="AUTONOMOUS">Autonomous flow</option></select>}
-            <button aria-label="Refresh workspace" onClick={loadProjects} className="grid h-9 w-9 place-items-center rounded-md border border-border bg-white text-muted transition hover:text-accent"><RefreshCw size={15} className={loading ? 'animate-spin' : ''} /></button>
-            <Button aria-label="Add repository" className="h-9 rounded-md shadow-none" size="sm" onClick={() => setCurrentTab('projects')}><Plus size={14} /><span className="hidden sm:inline">Repository</span></Button>
+            {activeProject && (
+              <select
+                aria-label="Autonomy mode"
+                value={activeProject.autonomy_mode || 'GUIDED'}
+                onChange={(event) => handleAutonomyChange(event.target.value as Project['autonomy_mode'])}
+                className="rounded-none border-2 border-black bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-black outline-none transition-colors focus:border-swiss-red focus:bg-swiss-gray cursor-pointer"
+              >
+                <option value="GUIDED">MODE: GUIDED CONTROL</option>
+                <option value="SUPERVISED">MODE: SUPERVISED FLOW</option>
+                <option value="AUTONOMOUS">MODE: FULL AUTONOMOUS</option>
+              </select>
+            )}
+            <button
+              aria-label="Refresh workspace"
+              onClick={loadProjects}
+              className="grid h-9 w-9 place-items-center rounded-none border-2 border-black bg-white text-black transition-colors hover:bg-black hover:text-white active:translate-y-[1px]"
+            >
+              <RefreshCw size={14} strokeWidth={2.5} className={loading ? 'animate-spin' : ''} />
+            </button>
+            <Button
+              aria-label="Add repository"
+              size="sm"
+              onClick={() => setCurrentTab('projects')}
+            >
+              <Plus size={14} strokeWidth={3} />
+              <span className="hidden sm:inline">ADD REPO</span>
+            </Button>
           </div>
         </header>
 
-        <nav aria-label="Mobile navigation" className="flex gap-1 overflow-x-auto border-b border-border bg-white px-3 py-2 lg:hidden">
-          {NAV_ITEMS.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setCurrentTab(id)} className={`flex shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-[10px] font-semibold ${currentTab === id ? 'bg-[#20201f] text-white' : 'text-muted'}`}><Icon size={13} />{label}</button>)}
+        {/* Mobile Navigation Strip */}
+        <nav aria-label="Mobile navigation" className="flex gap-1 overflow-x-auto border-b-2 border-black bg-swiss-gray p-2 lg:hidden">
+          {NAV_ITEMS.map(({ id, num, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setCurrentTab(id)}
+              className={`flex shrink-0 items-center gap-1.5 rounded-none border-2 border-black px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ${
+                currentTab === id ? 'bg-black text-white' : 'bg-white text-black hover:bg-neutral-100'
+              }`}
+            >
+              <span className="font-mono text-swiss-red">{num}</span>
+              <Icon size={13} />
+              {label}
+            </button>
+          ))}
         </nav>
 
-        <section className="flex items-end justify-between gap-6 px-4 pb-4 pt-5 sm:px-7">
-          <div className="min-w-0"><p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">{tabMeta.eyebrow}</p><h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">{tabMeta.title}</h1><p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted">{tabMeta.description}</p></div>
-          {currentTab === 'board' && <div className="hidden shrink-0 divide-x divide-border rounded-md border border-border bg-white md:flex"><div className="px-4 py-2"><div className="text-[9px] font-medium uppercase tracking-wider text-muted">Tasks</div><div className="mt-0.5 text-base font-semibold">{tasks.length}</div></div><div className="px-4 py-2"><div className="text-[9px] font-medium uppercase tracking-wider text-muted">Complete</div><div className="mt-0.5 text-base font-semibold">{completedTasks}</div></div><div className="px-4 py-2"><div className="text-[9px] font-medium uppercase tracking-wider text-muted">Attention</div><div className="mt-0.5 text-base font-semibold">{attentionTasks}</div></div></div>}
+        {/* Section Title & KPI Matrix */}
+        <section className="flex items-end justify-between gap-6 border-b-2 border-black bg-white px-4 py-4 sm:px-7">
+          <div className="min-w-0">
+            <p className="mb-0.5 text-[10px] font-black uppercase tracking-ultra text-swiss-red font-mono">
+              SECTION {tabMeta.num} · {tabMeta.eyebrow}
+            </p>
+            <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-black">
+              {tabMeta.title}
+            </h1>
+            <p className="mt-1 max-w-2xl text-xs font-medium text-neutral-600">
+              {tabMeta.description}
+            </p>
+          </div>
+          {currentTab === 'board' && (
+            <div className="hidden shrink-0 grid-cols-3 divide-x-2 divide-black border-2 border-black bg-white md:grid">
+              <div className="px-4 py-2 bg-white">
+                <div className="text-[9px] font-black uppercase tracking-widest text-neutral-500 font-mono">TASKS</div>
+                <div className="mt-0.5 text-lg font-black font-mono leading-none">{tasks.length}</div>
+              </div>
+              <div className="px-4 py-2 bg-white">
+                <div className="text-[9px] font-black uppercase tracking-widest text-neutral-500 font-mono">DONE</div>
+                <div className="mt-0.5 text-lg font-black font-mono text-emerald-700 leading-none">{completedTasks}</div>
+              </div>
+              <div className="px-4 py-2 bg-white">
+                <div className="text-[9px] font-black uppercase tracking-widest text-neutral-500 font-mono">ATTN</div>
+                <div className={`mt-0.5 text-lg font-black font-mono leading-none ${attentionTasks > 0 ? 'text-swiss-red' : 'text-neutral-400'}`}>
+                  {attentionTasks}
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
-        {error && <div role="alert" className="mx-4 mb-3 flex items-center justify-between rounded-xl border border-danger/20 bg-danger/5 px-4 py-2.5 text-xs font-medium text-danger sm:mx-7"><span>{error}</span><button className="font-bold" onClick={() => setError(null)}>Dismiss</button></div>}
+        {error && (
+          <div role="alert" className="mx-4 my-3 flex items-center justify-between border-2 border-black bg-swiss-red px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white sm:mx-7">
+            <span>{error}</span>
+            <button className="underline hover:text-black font-black" onClick={() => setError(null)}>
+              DISMISS
+            </button>
+          </div>
+        )}
 
-        {(['board', 'diff', 'preview'] as TabType[]).includes(currentTab) && <div className="px-4 sm:px-7"><PipelineVisualizer currentStage={currentPipelineStage} /></div>}
+        {(['board', 'diff', 'preview'] as TabType[]).includes(currentTab) && (
+          <div className="px-4 sm:px-7 pt-3">
+            <PipelineVisualizer currentStage={currentPipelineStage} />
+          </div>
+        )}
 
         {/* Dynamic Tab Body */}
         <div className="flex-1 overflow-hidden px-4 pb-3 sm:px-7">

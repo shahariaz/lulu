@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Card, CardHeader, CardTitle, CardContent } from './ui/Card'
+import { Card, CardHeader, CardTitle } from './ui/Card'
 import { Button } from './ui/Button'
 import { Badge } from './ui/Badge'
 import type { Project, RequirementsBaseline } from '../types'
@@ -71,8 +71,13 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
 
   if (!project) {
     return (
-      <Card className="h-full flex items-center justify-center text-center p-8">
-        <p className="text-xs text-muted">Select a project to compare baseline requirements versions.</p>
+      <Card className="h-full flex items-center justify-center text-center p-8 bg-swiss-gray border-2 border-black rounded-none">
+        <div>
+          <div className="text-xs font-mono font-black uppercase tracking-widest text-neutral-400 mb-1">[EMPTY STATE]</div>
+          <p className="text-xs font-bold uppercase tracking-wider text-black">
+            SELECT A REPOSITORY TO COMPARE BASELINE REQUIREMENTS
+          </p>
+        </div>
       </Card>
     )
   }
@@ -80,45 +85,64 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full overflow-hidden">
       {/* Left: Baseline Selector & Changelog */}
-      <Card className="flex flex-col h-full p-4">
-        <CardHeader className="p-0 pb-3 mb-3">
-          <CardTitle className="text-xs flex items-center justify-between">
-            <span>Requirements Version Comparison</span>
-            <Badge variant="ready">PRD Diff Engine</Badge>
+      <Card className="flex flex-col h-full p-4 border-2 border-black bg-white rounded-none">
+        <CardHeader className="p-0 pb-3 mb-3 border-b-2 border-black">
+          <CardTitle className="text-xs flex items-center justify-between w-full font-mono">
+            <span className="font-black uppercase tracking-wider text-black">[01] REQUIREMENTS DELTA MATRIX</span>
+            <span className="text-[10px] font-bold text-swiss-red uppercase">DIFF ENGINE</span>
           </CardTitle>
         </CardHeader>
 
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
           <select
-            className="flex-1 px-3 py-1.5 rounded border border-border bg-black/30 font-mono text-xs text-foreground"
+            className="flex-1 min-w-[140px] px-3 py-1.5 rounded-none border-2 border-black bg-white font-mono text-xs text-black font-bold focus:border-swiss-red outline-none cursor-pointer"
             value={baseId1}
             onChange={(e) => setBaseId1(e.target.value)}
-          ><option value="">Previous baseline</option>{baselines.map(base => <option key={base.id} value={base.id}>{base.version} · {base.status}</option>)}</select>
-          <span className="text-xs text-muted">&rarr;</span>
+          >
+            <option value="">PREVIOUS BASELINE</option>
+            {baselines.map((base) => (
+              <option key={base.id} value={base.id}>
+                {base.version} · {base.status.toUpperCase()}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs font-black text-black font-mono">→</span>
           <select
-            className="flex-1 px-3 py-1.5 rounded border border-border bg-black/30 font-mono text-xs text-foreground"
+            className="flex-1 min-w-[140px] px-3 py-1.5 rounded-none border-2 border-black bg-white font-mono text-xs text-black font-bold focus:border-swiss-red outline-none cursor-pointer"
             value={baseId2}
             onChange={(e) => setBaseId2(e.target.value)}
-          ><option value="">New baseline</option>{baselines.map(base => <option key={base.id} value={base.id}>{base.version} · {base.status}</option>)}</select>
-          <Button variant="primary" size="sm" onClick={handleRunDiff} disabled={loading || !baseId1 || !baseId2}>
-            Diff Baselines
+          >
+            <option value="">NEW BASELINE</option>
+            {baselines.map((base) => (
+              <option key={base.id} value={base.id}>
+                {base.version} · {base.status.toUpperCase()}
+              </option>
+            ))}
+          </select>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleRunDiff}
+            disabled={loading || !baseId1 || !baseId2}
+          >
+            DIFF BASELINES
           </Button>
         </div>
 
         {/* Formatted Changelog Output */}
-        <div className="flex-1 overflow-y-auto bg-[#070a0f] border border-border rounded p-3 font-mono text-xs text-foreground whitespace-pre-wrap leading-relaxed">
-          {changelog || 'Enter two baseline IDs above to inspect requirement changes and release notes.'}
+        <div className="flex-1 overflow-y-auto bg-swiss-gray border-2 border-black rounded-none p-3 font-mono text-xs text-black whitespace-pre-wrap leading-relaxed">
+          {changelog || 'Select two baseline versions above to audit requirement changes.'}
         </div>
       </Card>
 
       {/* Right: Automated Scope Impact Analysis */}
-      <Card className="flex flex-col h-full p-4">
-        <CardHeader className="p-0 pb-3 mb-3">
-          <CardTitle className="text-xs flex items-center justify-between">
-            <span>Automated Task Scope Impact</span>
+      <Card className="flex flex-col h-full p-4 border-2 border-black bg-white rounded-none">
+        <CardHeader className="p-0 pb-3 mb-3 border-b-2 border-black">
+          <CardTitle className="text-xs flex items-center justify-between w-full font-mono">
+            <span className="font-black uppercase tracking-wider text-black">[02] SCOPE IMPACT AUDIT</span>
             {impactReport && (
               <Badge variant={impactReport.hasImpact ? 'blocked' : 'done'}>
-                {impactReport.hasImpact ? 'Impact Detected' : 'No Task Impact'}
+                {impactReport.hasImpact ? 'IMPACT DETECTED' : 'NO IMPACT'}
               </Badge>
             )}
           </CardTitle>
@@ -129,33 +153,41 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
             <>
               {/* Affected Tasks */}
               <div>
-                <h4 className="text-xs font-bold text-danger mb-1.5">
-                  Affected Tasks Requiring Rework ({impactReport.affectedTasks.length})
+                <h4 className="text-xs font-black uppercase tracking-wider text-swiss-red font-mono mb-2">
+                  AFFECTED TASKS REQUIRING REWORK ({impactReport.affectedTasks.length})
                 </h4>
                 {impactReport.affectedTasks.map((t: any) => (
-                  <div key={t.taskId} className="p-2 rounded bg-danger/10 border border-danger/30 text-xs mb-1.5 flex justify-between">
+                  <div
+                    key={t.taskId}
+                    className="p-2.5 rounded-none bg-red-50 border-2 border-black text-xs mb-2 flex justify-between items-start"
+                  >
                     <div>
-                      <span className="font-semibold">{t.title}</span>
-                      <p className="text-[10px] text-danger/80">{t.reason}</p>
+                      <span className="font-black uppercase tracking-tight text-black">{t.title}</span>
+                      <p className="text-[11px] font-mono text-swiss-red mt-0.5">{t.reason}</p>
                     </div>
                     <Badge variant="blocked">{t.status}</Badge>
                   </div>
                 ))}
                 {impactReport.affectedTasks.length === 0 && (
-                  <p className="text-xs text-muted">No existing tasks affected by these requirement changes.</p>
+                  <p className="text-xs font-medium text-neutral-600">
+                    No active tasks affected by these specification changes.
+                  </p>
                 )}
               </div>
 
               {/* Uncovered Requirements */}
               {impactReport.uncoveredNewRequirements.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-bold text-accent mb-1.5">
-                    Uncovered New Requirements ({impactReport.uncoveredNewRequirements.length})
+                  <h4 className="text-xs font-black uppercase tracking-wider text-black font-mono mb-2">
+                    UNCOVERED NEW REQUIREMENTS ({impactReport.uncoveredNewRequirements.length})
                   </h4>
                   {impactReport.uncoveredNewRequirements.map((r: any) => (
-                    <div key={r.id} className="p-2 rounded bg-accent/10 border border-accent/30 text-xs mb-1.5">
-                      <span className="font-bold">{r.id}: </span>
-                      <span>{r.title}</span>
+                    <div
+                      key={r.id}
+                      className="p-2.5 rounded-none bg-swiss-gray border-2 border-black text-xs mb-2"
+                    >
+                      <span className="font-mono font-black text-swiss-red">{r.id}: </span>
+                      <span className="font-bold text-black">{r.title}</span>
                     </div>
                   ))}
                 </div>
@@ -163,16 +195,18 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
 
               {/* Apply Action Button */}
               {impactReport.affectedTasks.length > 0 && (
-                <div className="pt-3 mt-auto border-t border-border flex justify-end">
+                <div className="pt-3 mt-auto border-t-2 border-black flex justify-end">
                   <Button variant="danger" size="sm" onClick={handleApplyImpact} disabled={loading}>
-                    Flag Affected Tasks for Rework
+                    FLAG AFFECTED TASKS FOR REWORK
                   </Button>
                 </div>
               )}
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-center p-8">
-              <p className="text-xs text-muted">Run a baseline diff to detect scope impact on existing project tasks.</p>
+            <div className="flex-1 flex items-center justify-center text-center p-8 bg-swiss-gray border-2 border-dashed border-black/30 rounded-none">
+              <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 font-mono">
+                RUN BASELINE DIFF TO CALCULATE SCOPE IMPACT
+              </p>
             </div>
           )}
         </div>
@@ -180,3 +214,4 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
     </div>
   )
 }
+

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Card, CardHeader, CardTitle, CardContent } from './ui/Card'
+import { Card, CardHeader, CardTitle } from './ui/Card'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Badge } from './ui/Badge'
@@ -66,9 +66,7 @@ export function ConversationalScoper({
     setLoading(true)
     setError(null)
     try {
-      // 1. Draft baseline in SQLite
       const { draft } = await api.draftBaseline(project.id, specDraft, 'v1.0.0')
-      // 2. Formally lock and approve baseline
       const { approved } = await api.approveBaseline(draft.id, 'owner')
       onBaselineApproved(approved)
     } catch (err: any) {
@@ -80,8 +78,13 @@ export function ConversationalScoper({
 
   if (!project) {
     return (
-      <Card className="h-full flex items-center justify-center text-center p-8">
-        <p className="text-xs text-muted">Select or import a repository to begin conversational feature scoping.</p>
+      <Card className="h-full flex items-center justify-center text-center p-8 bg-swiss-gray border-2 border-black rounded-none">
+        <div>
+          <div className="text-xs font-mono font-black uppercase tracking-widest text-neutral-400 mb-1">[EMPTY STATE]</div>
+          <p className="text-xs font-bold uppercase tracking-wider text-black">
+            SELECT OR IMPORT A REPOSITORY TO COMMENCE CONVERSATIONAL SCOPING
+          </p>
+        </div>
       </Card>
     )
   }
@@ -89,36 +92,40 @@ export function ConversationalScoper({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full overflow-hidden">
       {/* Left: Chat Scoper */}
-      <Card className="flex flex-col h-full p-4">
-        <CardHeader className="p-0 pb-3 mb-3">
-          <CardTitle className="text-xs flex items-center justify-between">
-            <span>Conversational Feature Scoper (Architect Model)</span>
-            <Badge variant="ready">Configured Strong Model</Badge>
+      <Card className="flex flex-col h-full p-4 border-2 border-black bg-white rounded-none">
+        <CardHeader className="p-0 pb-3 mb-3 border-b-2 border-black">
+          <CardTitle className="text-xs flex items-center justify-between w-full font-mono">
+            <span className="font-black uppercase tracking-wider text-black">[01] SCOPING ARCHITECT</span>
+            <Badge variant="ready">ARCHITECT MODEL</Badge>
           </CardTitle>
         </CardHeader>
 
         {!conversationId ? (
           <div className="flex flex-col gap-3 my-auto max-w-md mx-auto w-full">
             <div>
-              <label className="block text-xs font-semibold text-muted mb-1">Feature Title</label>
+              <label className="block text-[10px] font-black uppercase tracking-wider text-black font-mono mb-1">
+                FEATURE TITLE
+              </label>
               <Input
-                placeholder="e.g. Distributed Lock Manager"
+                placeholder="e.g. DISTRIBUTED LOCK MANAGER"
                 value={featureTitle}
                 onChange={(e) => setFeatureTitle(e.target.value)}
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-muted mb-1">Initial Scope & Requirements</label>
+              <label className="block text-[10px] font-black uppercase tracking-wider text-black font-mono mb-1">
+                SCOPE & REQUIREMENTS OUTLINE
+              </label>
               <textarea
-                className="w-full h-24 p-2.5 rounded-md border border-border bg-black/20 text-sm placeholder:text-muted focus:outline-none focus:border-accent"
+                className="w-full h-28 p-3 rounded-none border-2 border-black bg-white text-xs font-medium text-black placeholder:text-neutral-400 focus:outline-none focus:border-swiss-red resize-none"
                 placeholder="Describe goals, edge cases, APIs, and verification criteria..."
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
               />
             </div>
-            {error && <p className="text-xs text-danger">{error}</p>}
-            <Button variant="primary" onClick={handleStartScoping} disabled={loading || !featureTitle.trim()}>
-              {loading ? 'Starting Architect Session...' : 'Start Scoping Session'}
+            {error && <p className="text-xs font-mono font-bold text-swiss-red uppercase">{error}</p>}
+            <Button variant="default" onClick={handleStartScoping} disabled={loading || !featureTitle.trim()}>
+              {loading ? 'INITIALIZING ARCHITECT...' : 'COMMENCE SCOPING SESSION'}
             </Button>
           </div>
         ) : (
@@ -128,22 +135,22 @@ export function ConversationalScoper({
               {messages.map((m, idx) => (
                 <div
                   key={idx}
-                  className={`p-3 rounded-lg text-xs leading-relaxed max-w-[85%] ${
+                  className={`p-3.5 rounded-none border-2 border-black text-xs leading-relaxed max-w-[85%] ${
                     m.role === 'user'
-                      ? 'bg-accent/15 border border-accent/30 text-foreground self-end'
-                      : 'bg-card border border-border text-foreground self-start'
+                      ? 'bg-black text-white self-end'
+                      : 'bg-swiss-gray text-black self-start'
                   }`}
                 >
-                  <span className="block text-[10px] font-bold text-muted uppercase mb-1">
-                    {m.role === 'user' ? 'Owner' : 'Architect'}
+                  <span className={`block text-[9px] font-black uppercase font-mono mb-1 ${m.role === 'user' ? 'text-swiss-red' : 'text-neutral-500'}`}>
+                    {m.role === 'user' ? '[OWNER]' : '[ARCHITECT]'}
                   </span>
-                  {m.content}
+                  <div className="whitespace-pre-wrap font-sans">{m.content}</div>
                 </div>
               ))}
             </div>
 
             {/* Input Bar */}
-            <div className="flex gap-2 pt-2 border-t border-border">
+            <div className="flex gap-2 pt-2 border-t-2 border-black">
               <Input
                 placeholder="Refine requirements, define edge cases..."
                 value={prompt}
@@ -151,7 +158,7 @@ export function ConversationalScoper({
                 onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
               />
               <Button variant="default" size="sm" onClick={handleSendMessage} disabled={loading || !prompt.trim()}>
-                Send
+                SEND
               </Button>
             </div>
           </div>
@@ -159,13 +166,13 @@ export function ConversationalScoper({
       </Card>
 
       {/* Right: PRD Markdown Editor & Version Approver */}
-      <Card className="flex flex-col h-full p-4">
-        <CardHeader className="p-0 pb-3 mb-3">
-          <CardTitle className="text-xs flex items-center justify-between">
-            <span>PRD Specification & Baseline Approver</span>
+      <Card className="flex flex-col h-full p-4 border-2 border-black bg-white rounded-none">
+        <CardHeader className="p-0 pb-3 mb-3 border-b-2 border-black">
+          <CardTitle className="text-xs flex items-center justify-between w-full font-mono">
+            <span className="font-black uppercase tracking-wider text-black">[02] PRD SPECIFICATION DRAFT</span>
             {activeBaseline && (
-              <span className="text-[11px] font-mono text-success bg-success/10 px-2 py-0.5 rounded border border-success/30">
-                Active: {activeBaseline.version} (APPROVED)
+              <span className="text-[10px] font-mono font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 border border-black uppercase">
+                ACTIVE: {activeBaseline.version} (APPROVED)
               </span>
             )}
           </CardTitle>
@@ -173,24 +180,29 @@ export function ConversationalScoper({
 
         <div className="flex-1 flex flex-col overflow-hidden">
           <textarea
-            className="flex-1 w-full p-3 rounded-md border border-border bg-[#05070a] font-mono text-xs text-foreground placeholder:text-muted resize-none focus:outline-none focus:border-accent"
+            className="flex-1 w-full p-3.5 rounded-none border-2 border-black bg-swiss-gray font-mono text-xs text-black placeholder:text-neutral-400 resize-none focus:outline-none focus:border-swiss-red leading-relaxed"
             placeholder="# Specification Markdown will generate here..."
             value={specDraft}
             onChange={(e) => setSpecDraft(e.target.value)}
           />
 
           <div className="mt-2 flex justify-end">
-            <Button variant="ghost" size="sm" onClick={() => {
-              const latest = [...messages].reverse().find((message) => message.role === 'assistant')
-              if (latest) setSpecDraft(latest.content)
-            }} disabled={!messages.some((message) => message.role === 'assistant')}>
-              Use latest Architect response
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const latest = [...messages].reverse().find((message) => message.role === 'assistant')
+                if (latest) setSpecDraft(latest.content)
+              }}
+              disabled={!messages.some((message) => message.role === 'assistant')}
+            >
+              USE LATEST ARCHITECT RESPONSE
             </Button>
           </div>
 
-          <div className="flex items-center justify-between pt-3 mt-3 border-t border-border">
-            <span className="text-[11px] text-muted font-mono">
-              Immutable version locks on approval.
+          <div className="flex items-center justify-between pt-3 mt-3 border-t-2 border-black">
+            <span className="text-[10px] text-neutral-500 font-mono font-bold uppercase">
+              IMMUTABLE AUDIT LOCK ON APPROVAL
             </span>
             <Button
               variant="primary"
@@ -198,7 +210,7 @@ export function ConversationalScoper({
               onClick={handleApproveBaseline}
               disabled={loading || !specDraft.trim()}
             >
-              Approve Baseline v1.0.0
+              APPROVE BASELINE V1.0.0
             </Button>
           </div>
         </div>

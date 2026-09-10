@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { Card, CardHeader, CardTitle, CardContent } from './ui/Card'
+import { Card, CardHeader, CardTitle } from './ui/Card'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Badge } from './ui/Badge'
-import type { Project, Milestone, Task } from '../types'
+import type { Project, Task } from '../types'
 import { api } from '../lib/api'
 
 interface EpicProgress {
@@ -64,8 +64,13 @@ export function EpicPlannerView({ project, tasks }: EpicPlannerViewProps) {
 
   if (!project) {
     return (
-      <Card className="h-full flex items-center justify-center text-center p-8">
-        <p className="text-xs text-muted">Select a project to plan epics and sprints.</p>
+      <Card className="h-full flex items-center justify-center text-center p-8 bg-swiss-gray border-2 border-black rounded-none">
+        <div>
+          <div className="text-xs font-mono font-black uppercase tracking-widest text-neutral-400 mb-1">[EMPTY STATE]</div>
+          <p className="text-xs font-bold uppercase tracking-wider text-black">
+            SELECT A REPOSITORY TO PLAN EPICS AND SPRINTS
+          </p>
+        </div>
       </Card>
     )
   }
@@ -74,11 +79,11 @@ export function EpicPlannerView({ project, tasks }: EpicPlannerViewProps) {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full overflow-hidden">
       {/* Left 2 Cols: Epics & Child Tasks Hierarchy */}
       <div className="lg:col-span-2 flex flex-col gap-3 h-full overflow-y-auto pr-1">
-        <Card className="p-4">
-          <CardHeader className="p-0 pb-3 mb-3">
-            <CardTitle className="text-xs flex items-center justify-between">
-              <span>Hierarchical Epics Breakdown</span>
-              <Badge variant="ready">{epics.length} Epics</Badge>
+        <Card className="p-4 border-2 border-black bg-white rounded-none">
+          <CardHeader className="p-0 pb-3 mb-3 border-b-2 border-black">
+            <CardTitle className="text-xs flex items-center justify-between w-full font-mono">
+              <span className="font-black uppercase tracking-wider text-black">[01] HIERARCHICAL EPICS BREAKDOWN</span>
+              <Badge variant="ready">{epics.length} EPICS</Badge>
             </CardTitle>
           </CardHeader>
 
@@ -87,11 +92,11 @@ export function EpicPlannerView({ project, tasks }: EpicPlannerViewProps) {
               const epicTasks = tasks.filter((t: any) => t.epic_id === epic.epicId)
 
               return (
-                <div key={epic.epicId} className="p-3.5 rounded-lg border border-border bg-black/20 flex flex-col gap-2.5">
+                <div key={epic.epicId} className="p-3.5 rounded-none border-2 border-black bg-swiss-gray flex flex-col gap-2.5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="text-xs font-bold text-foreground">{epic.title}</h4>
-                      <span className="text-[10px] text-muted font-mono">ID: {epic.epicId}</span>
+                      <h4 className="text-xs font-black uppercase tracking-tight text-black">{epic.title}</h4>
+                      <span className="text-[10px] text-neutral-600 font-mono font-bold">ID: {epic.epicId}</span>
                     </div>
                     <Badge variant={epic.status === 'COMPLETED' ? 'done' : epic.status === 'IN_PROGRESS' ? 'progress' : 'default'}>
                       {epic.status}
@@ -99,26 +104,26 @@ export function EpicPlannerView({ project, tasks }: EpicPlannerViewProps) {
                   </div>
 
                   {/* Progress Bar */}
-                  <div className="w-full bg-black/40 h-2 rounded-full overflow-hidden border border-border/50">
+                  <div className="w-full bg-white h-2.5 rounded-none overflow-hidden border-2 border-black">
                     <div
-                      className="bg-accent h-full transition-all duration-500"
+                      className="bg-black h-full transition-all duration-200"
                       style={{ width: `${epic.progressPercentage}%` }}
                     />
                   </div>
-                  <div className="flex justify-between text-[10px] text-muted font-mono">
-                    <span>Progress: {epic.progressPercentage}%</span>
-                    <span>{epic.completedTasks} / {epic.totalTasks} Tasks Done</span>
+                  <div className="flex justify-between text-[10px] text-neutral-600 font-mono font-bold uppercase">
+                    <span>PROGRESS: {epic.progressPercentage}%</span>
+                    <span>{epic.completedTasks} / {epic.totalTasks} TASKS COMPLETE</span>
                   </div>
 
                   {/* Child Tasks List */}
                   {epicTasks.length > 0 && (
-                    <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-border/40">
+                    <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t-2 border-black/15">
                       {epicTasks.map((t) => (
-                        <div key={t.id} className="p-2 rounded bg-card border border-border/60 flex items-center justify-between text-xs">
-                          <span className="font-medium text-foreground truncate max-w-[280px]">{t.title}</span>
+                        <div key={t.id} className="p-2 rounded-none bg-white border border-black flex items-center justify-between text-xs">
+                          <span className="font-bold uppercase text-black truncate max-w-[280px]">{t.title}</span>
                           <div className="flex items-center gap-1.5">
                             {t.linked_requirement_ids && t.linked_requirement_ids.map((r: string) => (
-                              <span key={r} className="text-[9px] font-mono px-1 rounded bg-white/5 border border-border text-muted">
+                              <span key={r} className="text-[9px] font-mono px-1 rounded-none bg-swiss-gray border border-black text-black font-bold">
                                 {r}
                               </span>
                             ))}
@@ -133,8 +138,10 @@ export function EpicPlannerView({ project, tasks }: EpicPlannerViewProps) {
             })}
 
             {epics.length === 0 && (
-              <div className="text-center p-8 border border-dashed border-border/40 rounded">
-                <p className="text-xs text-muted">No epics created yet. Decompose an approved baseline into hierarchical epics to begin.</p>
+              <div className="text-center p-8 border-2 border-dashed border-black/20 rounded-none bg-swiss-gray">
+                <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 font-mono">
+                  NO EPICS DEFINED. DECOMPOSE AN APPROVED BASELINE TO BEGIN.
+                </p>
               </div>
             )}
           </div>
@@ -143,54 +150,62 @@ export function EpicPlannerView({ project, tasks }: EpicPlannerViewProps) {
 
       {/* Right Col: Sprints Management */}
       <div className="flex flex-col gap-3 h-full overflow-y-auto">
-        <Card className="p-4">
-          <CardHeader className="p-0 pb-3 mb-3">
-            <CardTitle className="text-xs">Create Sprint</CardTitle>
+        <Card className="p-4 border-2 border-black bg-white rounded-none">
+          <CardHeader className="p-0 pb-3 mb-3 border-b-2 border-black">
+            <CardTitle className="text-xs font-mono font-black uppercase tracking-wider text-black">
+              [02] CONFIGURE SPRINT
+            </CardTitle>
           </CardHeader>
 
           <form onSubmit={handleCreateSprint} className="flex flex-col gap-3">
             <div>
-              <label className="block text-[11px] font-semibold text-muted mb-1">Sprint Name</label>
+              <label className="block text-[10px] font-black uppercase tracking-wider text-black font-mono mb-1">
+                SPRINT NAME
+              </label>
               <Input
-                placeholder="e.g. Sprint 1 - Foundation"
+                placeholder="e.g. SPRINT 1 - FOUNDATION"
                 value={sprintName}
                 onChange={(e) => setSprintName(e.target.value)}
               />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-muted mb-1">Sprint Goal</label>
+              <label className="block text-[10px] font-black uppercase tracking-wider text-black font-mono mb-1">
+                SPRINT GOAL
+              </label>
               <Input
-                placeholder="Deliver core engine and tests"
+                placeholder="DELIVER CORE ENGINE & TESTS"
                 value={sprintGoal}
                 onChange={(e) => setSprintGoal(e.target.value)}
               />
             </div>
-            <Button variant="primary" size="sm" type="submit" disabled={!sprintName.trim()}>
-              Create Sprint
+            <Button variant="default" size="sm" type="submit" disabled={!sprintName.trim()}>
+              CREATE SPRINT
             </Button>
           </form>
         </Card>
 
-        <Card className="p-4 flex-1">
-          <CardHeader className="p-0 pb-3 mb-3">
-            <CardTitle className="text-xs flex items-center justify-between">
-              <span>Configured Sprints</span>
-              <span className="text-[10px] font-mono text-muted">{sprints.length}</span>
+        <Card className="p-4 flex-1 border-2 border-black bg-white rounded-none">
+          <CardHeader className="p-0 pb-3 mb-3 border-b-2 border-black">
+            <CardTitle className="text-xs flex items-center justify-between w-full font-mono">
+              <span className="font-black uppercase tracking-wider text-black">[03] ACTIVE SPRINTS</span>
+              <span className="text-[10px] font-mono font-bold text-swiss-red uppercase">{sprints.length} CONFIGURED</span>
             </CardTitle>
           </CardHeader>
 
           <div className="flex flex-col gap-2">
             {sprints.map((s) => (
-              <div key={s.id} className="p-2.5 rounded border border-border bg-black/20 text-xs flex flex-col gap-1">
+              <div key={s.id} className="p-2.5 rounded-none border-2 border-black bg-swiss-gray text-xs flex flex-col gap-1">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold">{s.name}</span>
+                  <span className="font-black uppercase text-black">{s.name}</span>
                   <Badge variant={s.status === 'ACTIVE' ? 'progress' : 'default'}>{s.status}</Badge>
                 </div>
-                {s.goal && <p className="text-[11px] text-muted">{s.goal}</p>}
+                {s.goal && <p className="text-[11px] font-medium text-neutral-600">{s.goal}</p>}
               </div>
             ))}
             {sprints.length === 0 && (
-              <p className="text-xs text-muted text-center py-4">No sprints planned.</p>
+              <p className="text-xs font-mono font-bold uppercase text-neutral-400 text-center py-4">
+                NO SPRINTS PLANNED.
+              </p>
             )}
           </div>
         </Card>

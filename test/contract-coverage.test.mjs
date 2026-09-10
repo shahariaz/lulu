@@ -140,6 +140,25 @@ test('every gateway call whose output is parsed sets an explicit token budget', 
     })
   }
 
+  // Not every gateway call goes through callGatewayForText. review-engine.mjs posts with raw
+  // fetch, which is exactly why its max_tokens sat at 4096 while parsing a JSON verdict —
+  // the most safety-critical parsed call in the product, missed by a callGatewayForText-only
+  // scan. Catch literal budgets too.
+  for (const file of listEngineModules(engineDir)) {
+    const source = fs.readFileSync(file, 'utf8')
+    if (!/\/v1\/messages/.test(source)) continue
+    if (!/JSON\.parse|jsonObjectFromText|\.json\(\)/.test(source)) continue
+    // The contract probe asks for one word ("PONG") on a cadence against the owner's pooled
+    // subscriptions. It reads the response ENVELOPE, never model-authored JSON, so a large
+    // budget would spend real quota to learn nothing. Small here is the correct decision.
+    if (path.basename(file) === 'provider-contract.mjs') continue
+    const lines = source.split('\n')
+    lines.forEach((line, i) => {
+      const literal = line.match(/max_tokens:\s*(\d+)/)
+      if (literal && Number(literal[1]) < 8000) offenders.push(`${path.basename(file)}:${i + 1} (max_tokens: ${literal[1]})`)
+    })
+  }
+
   assert.deepEqual(offenders, [],
     `These calls parse their response but run on the default chat budget:\n`
     + offenders.map((o) => `  - ${o}`).join('\n')

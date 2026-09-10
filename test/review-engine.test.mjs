@@ -363,3 +363,101 @@ test('an unreachable gateway holds the task instead of approving it', async () =
   closeOrchestratorDb()
   fs.rmSync(repo, { recursive: true, force: true })
 })
+
+/**
+ * INVARIANT 5 — the reviewer is not the author.
+ *
+ * Requesting two different model ids is not evidence of independence. The gateways silently
+ * reroute: asking the zen proxy for `claude-zen-opus` returns `gpt-5.6-sol@low`, with nothing in
+ * the response announcing the swap. So two distinct requests can resolve to one model and the
+ * product's independent-review guarantee quietly becomes self-review. The check must compare the
+ * models that ACTUALLY ANSWERED.
+ */
+async function reviewWithResolvedModels({ workerModel, reviewerResolvedModel }) {
+  const db = getOrchestratorDb(getTempDbPath())
+  const repo = createTempGitRepo('zen-repo-independence-')
+
+  const project = createProject({ name: 'App', repoPath: repo }, db)
+  const baseline = createBaseline({ projectId: project.id, specMarkdown: 'spec', contentDigest: 'd', status: 'APPROVED' }, db)
+  const milestone = createMilestone({ baselineId: baseline.id, title: 'M1' }, db)
+  const task = createTask({ milestoneId: milestone.id, title: 'Independence', status: 'Code Review' }, db)
+
+  createFeatureBranch(repo, 'feature-independence')
+  const { worktreePath, baseCommitSha } = provisionTaskWorktree(repo, 'zen/feature-independence', task.id)
+  fs.writeFileSync(path.join(worktreePath, 'feature.js'), 'export const ready = true;\n')
+  runGit(worktreePath, ['add', 'feature.js'])
+  runGit(worktreePath, ['commit', '-m', 'feat: candidate'])
+  const candidateCommitSha = runGit(worktreePath, ['rev-parse', 'HEAD'])
+
+  // The worker run records the model that actually wrote the code.
+  createTaskRun({ taskId: task.id, kind: 'WORKER', role: 'WORKER', model: workerModel }, db)
+  const run = createTaskRun({ taskId: task.id, kind: 'REVIEW', role: 'REVIEWER' }, db)
+
+  const result = await runSpecialistReview({
+    taskId: task.id,
+    projectId: project.id,
+    taskRunId: run.id,
+    worktreePath,
+    baseCommitSha,
+    candidateCommitSha,
+    verificationDigest: 'sha256:mockverifdigest',
+    reviewRunner: async () => ({
+      verdict: 'APPROVE',
+      summary: 'Looks good.',
+      findings: [],
+      resolvedModel: reviewerResolvedModel,
+    }),
+  }, db)
+
+  const finalTask = getTask(task.id, db)
+  closeOrchestratorDb()
+  fs.rmSync(repo, { recursive: true, force: true })
+  return { result, finalTask }
+}
+
+test('an APPROVE from the model that wrote the code is refused, not recorded', async () => {
+  // Two different requested ids, one resolved model. Without this check the task advances to QA
+  // on the author's own approval.
+  const { result, finalTask } = await reviewWithResolvedModels({
+    workerModel: 'gpt-5.6-sol@low',
+    reviewerResolvedModel: 'gpt-5.6-sol@low',
+  })
+
+  assert.equal(result.status, 'PENDING_SPECIALIST_UNAVAILABLE',
+    'a self-review must hold, never advance')
+  assert.match(result.reason, /same model/i)
+  assert.notEqual(finalTask.status, 'QA', 'the task must not reach QA on a self-review')
+  assert.equal(result.reviewRecord, undefined, 'a refused review must leave no approval record')
+})
+
+test('a routing suffix is not treated as a different reviewer', async () => {
+  // `gpt-5.6-sol` and `gpt-5.6-sol@low` are the same model with a routing decoration. Treating
+  // that as independence would be the exact hole; treating it as a breach is also wrong only if
+  // it blocks legitimate reviews — so it must still hold.
+  const { result } = await reviewWithResolvedModels({
+    workerModel: 'gpt-5.6-sol',
+    reviewerResolvedModel: 'gpt-5.6-sol@low',
+  })
+  assert.equal(result.status, 'PENDING_SPECIALIST_UNAVAILABLE')
+})
+
+test('a genuinely different reviewer approves normally', async () => {
+  const { result, finalTask } = await reviewWithResolvedModels({
+    workerModel: 'claude-zen-opus',
+    reviewerResolvedModel: 'gemini-3.8-flash-tiered',
+  })
+
+  assert.equal(result.reviewRecord.verdict, 'APPROVE')
+  assert.equal(result.outcome.outcome, 'ADVANCED_TO_QA')
+  assert.equal(finalTask.status, 'QA')
+})
+
+test('an unknown resolved model is not treated as a breach', async () => {
+  // Not every gateway reports the model it used. An unknown is missing evidence, not evidence of
+  // a breach — holding every review on a silent gateway would make the product unusable.
+  const { result } = await reviewWithResolvedModels({
+    workerModel: 'claude-zen-opus',
+    reviewerResolvedModel: null,
+  })
+  assert.equal(result.outcome.outcome, 'ADVANCED_TO_QA')
+})

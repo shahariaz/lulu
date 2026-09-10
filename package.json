@@ -1,0 +1,31 @@
+{
+  "name": "claude-zen",
+  "version": "1.0.0",
+  "description": "Self-hosted autonomous AI software delivery platform with a multi-provider gateway.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "bin": {
+    "claude-zen": "./bin/claude-zen",
+    "zen-orchestrator": "./bin/zen-orchestrator"
+  },
+  "scripts": {
+    "test": "node --test --test-timeout=60000 test/*.test.mjs",
+    "start": "./start.sh",
+    "orchestrator": "node bin/zen-orchestrator",
+    "build:ui": "cd frontend && npm install && npm run build",
+    "build:worker-image": "docker build -f docker/worker.Dockerfile -t claude-zen/worker:latest ."
+  },
+  "comments": {
+    "test": "The test/*.test.mjs glob is required. `node --test test/` resolves 'test/' as a module path on Node 24 and dies with MODULE_NOT_FOUND.",
+    "setup": "Run `npm install` (or `npm ci`) before starting the orchestrator or running tests — lib/orchestrator's HTTP transport needs Hono. The gateways (zen-proxy/codex/antigravity) stay dependency-free and run from a bare checkout.",
+    "dependencies": "Hono is the HTTP transport boundary ONLY. Domain engines and SQLite repositories must remain framework-independent so they stay callable from tests, the CLI, and a future transport; see docs/orchestrator/current-architecture.md. Adding any further runtime dependency to lib/ is an architectural decision, not a convenience."
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "hono": "^4.13.7"
+  }
+}

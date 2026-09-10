@@ -1,7 +1,27 @@
+# Secrets and local config
 .env
+
+# Logs
 *.log
 proxy.log
-*.zip
+
+# OS / editor noise
 .DS_Store
+
+# Dependencies (lib/ and bin/ have none; this is for frontend/ and vendored sub-projects)
 node_modules/
+
+# Built output of the React cockpit — produced by `npm run build:ui`.
+# Not tracked: a fresh clone builds it. lib/orchestrator/api.mjs serves from here.
 dist/
+
+# Archives
+*.zip
+
+# Screenshots and scratch artifacts from local dogfooding / visual QA runs.
+# Regenerable; keeping them tracked added ~3MB of PNGs to a small repo.
+test-artifacts/
+dogfood-output/
+
+# Unrelated documents committed by accident
+*.pptx

@@ -1,0 +1,42 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 24 is required, not preferred: the codebase runs on node:sqlite and node:test
+      # from the standard library and has no npm dependencies to install.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Show versions
+        run: node --version
+
+      # The orchestrator's HTTP transport depends on Hono, so the suite cannot run from a bare
+      # checkout. The gateways (zen-proxy / codex / antigravity) remain dependency-free.
+      - name: Install dependencies
+        run: npm ci
+
+      # The test/*.test.mjs glob is required — `node --test test/` resolves 'test/' as a
+      # module path on Node 24 and fails with MODULE_NOT_FOUND.
+      - name: Run test suite
+        run: npm test
+
+      # The suite must not mutate the working tree. This guard exists because a run once
+      # left tracked files deleted; if that ever recurs, CI catches it instead of a developer
+      # discovering it by accident.
+      - name: Assert working tree is clean after tests
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::Test run modified the working tree:"
+            git status --porcelain
+            exit 1
+          fi

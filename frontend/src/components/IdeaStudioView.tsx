@@ -72,65 +72,65 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
 
   if (!sessionId) {
     return (
-      <div className="h-full overflow-y-auto pb-8">
+      <div className="h-full overflow-y-auto pb-8 p-4">
         <div className="mx-auto grid max-w-5xl gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
-          <aside aria-label="Idea shaping stages" tabIndex={0} className="w-full self-start overflow-x-auto rounded-none border-2 border-black bg-white p-4 focus:outline-none lg:sticky lg:top-0">
-            <div className="mb-3 text-[10px] font-mono font-black uppercase tracking-wider text-swiss-red lg:mb-5">
-              [PROTOCOL] STAGES
+          <aside aria-label="Idea shaping stages" tabIndex={0} className="w-full self-start overflow-x-auto rounded-xl border border-zinc-200 bg-white p-4 focus:outline-none lg:sticky lg:top-0 shadow-2xs">
+            <div className="mb-3 text-xs font-semibold text-[#ea3a12] lg:mb-4">
+              Idea shaping protocol
             </div>
             <ol className="flex gap-1 lg:block lg:space-y-1">
-              <StudioStep n="01" label="PRODUCT BRIEF" detail="Define problem & persona" active />
-              <StudioStep n="02" label="COUNCIL" detail="Challenge assumptions" />
-              <StudioStep n="03" label="EVIDENCE" detail="Empirical market teardown" />
-              <StudioStep n="04" label="BLUEPRINT" detail="System specification" />
-              <StudioStep n="05" label="DELIVERY PLAN" detail="Approve and initialize" />
+              <StudioStep n="01" label="Product brief" detail="Define problem & persona" active />
+              <StudioStep n="02" label="Council" detail="Challenge assumptions" />
+              <StudioStep n="03" label="Evidence" detail="Empirical market teardown" />
+              <StudioStep n="04" label="Blueprint" detail="System specification" />
+              <StudioStep n="05" label="Delivery plan" detail="Approve and initialize" />
             </ol>
-            <div className="mt-6 hidden border-t-2 border-black pt-4 lg:block">
-              <div className="text-[10px] font-mono font-black uppercase text-black">NO PERSISTED DRIFT</div>
-              <p className="mt-1 text-[10px] font-medium leading-relaxed text-neutral-600">
+            <div className="mt-6 hidden border-t border-zinc-100 pt-4 lg:block">
+              <div className="text-xs font-semibold text-zinc-900">No persisted drift</div>
+              <p className="mt-1 text-[11px] text-zinc-500 leading-relaxed">
                 Brief becomes durable once council session starts. Approval requires owner signoff.
               </p>
             </div>
           </aside>
 
-          <Card className="overflow-hidden p-0 border-2 border-black bg-white rounded-none">
-            <div className="border-b-2 border-black px-6 py-5 bg-white">
+          <Card className="overflow-hidden p-0 border border-zinc-200 bg-white rounded-xl shadow-2xs">
+            <div className="border-b border-zinc-100 px-6 py-4 bg-white">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-sm font-mono font-black uppercase tracking-wider text-black">[01] PRODUCT BRIEF</h2>
-                  <p className="mt-1 text-xs font-medium text-neutral-600">Provide the architectural council with context to audit the product proposal.</p>
+                  <h2 className="text-sm font-semibold text-zinc-900">Product brief</h2>
+                  <p className="mt-0.5 text-xs text-zinc-500">Provide the architectural council with context to audit the product proposal.</p>
                 </div>
-                <span className="shrink-0 rounded-none border-2 border-black bg-swiss-gray px-2.5 py-1 text-[10px] font-mono font-black text-black">
-                  {briefSignals}/4 SIGNALS
+                <span className="shrink-0 rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-0.5 text-xs font-medium text-zinc-600">
+                  {briefSignals}/4 essentials
                 </span>
               </div>
             </div>
 
             <div className="space-y-6 p-6">
-              <BriefSection icon={Lightbulb} title="IDEA CONCEPT" description="Working product name and primary user role.">
+              <BriefSection icon={Lightbulb} title="Idea concept" description="Working product name and primary user role.">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="WORKING PRODUCT NAME" hint="A clear descriptive title.">
-                    <Input value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="e.g. EVENT STREAMING BUS" />
+                  <Field label="Working product name" hint="A clear descriptive title.">
+                    <Input value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="e.g. Event Streaming Bus" />
                   </Field>
-                  <Field label="PRIMARY USER PERSONA" hint="The core operator with the strongest pain point.">
-                    <Input value={targetPersona} onChange={e => setTargetPersona(e.target.value)} placeholder="e.g. PLATFORM ENGINEER" />
+                  <Field label="Primary user persona" hint="The core operator with the strongest pain point.">
+                    <Input value={targetPersona} onChange={e => setTargetPersona(e.target.value)} placeholder="e.g. Platform engineer" />
                   </Field>
                 </div>
               </BriefSection>
 
-              <BriefSection icon={Users} title="PROBLEM & OUTCOME" description="Separate current pain from observable future outcome.">
+              <BriefSection icon={Users} title="Problem & outcome" description="Separate current pain from observable future outcome.">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="WHAT IS BROKEN TODAY?" hint="Describe concrete behaviors and consequences.">
+                  <Field label="What is broken today?" hint="Describe concrete behaviors and consequences.">
                     <textarea
-                      className="h-28 w-full rounded-none border-2 border-black bg-white p-3 text-xs font-medium leading-relaxed outline-none focus:border-swiss-red resize-none"
+                      className="h-28 w-full rounded-lg border border-zinc-200 bg-white p-3 text-xs leading-relaxed outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100 resize-none shadow-2xs"
                       value={ideaDescription}
                       onChange={e => setIdeaDescription(e.target.value)}
                       placeholder="Teams struggle to orchestrate multi-repo releases because..."
                     />
                   </Field>
-                  <Field label="WHAT BECOMES POSSIBLE?" hint="State the observable user or business impact.">
+                  <Field label="What becomes possible?" hint="State the observable user or business impact.">
                     <textarea
-                      className="h-28 w-full rounded-none border-2 border-black bg-white p-3 text-xs font-medium leading-relaxed outline-none focus:border-swiss-red resize-none"
+                      className="h-28 w-full rounded-lg border border-zinc-200 bg-white p-3 text-xs leading-relaxed outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100 resize-none shadow-2xs"
                       value={desiredOutcome}
                       onChange={e => setDesiredOutcome(e.target.value)}
                       placeholder="Developers can verify hermetic commits and deploy automatically..."
@@ -139,19 +139,19 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
                 </div>
               </BriefSection>
 
-              <BriefSection icon={FileCheck2} title="BOUNDARIES" description="Define strict project limits and non-goals.">
+              <BriefSection icon={FileCheck2} title="Boundaries" description="Define strict project limits and non-goals.">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="CONSTRAINTS" hint="Platform, runtime, or architectural limits.">
+                  <Field label="Constraints" hint="Platform, runtime, or architectural limits.">
                     <textarea
-                      className="h-24 w-full rounded-none border-2 border-black bg-white p-3 text-xs font-medium leading-relaxed outline-none focus:border-swiss-red resize-none"
+                      className="h-24 w-full rounded-lg border border-zinc-200 bg-white p-3 text-xs leading-relaxed outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100 resize-none shadow-2xs"
                       value={constraints}
                       onChange={e => setConstraints(e.target.value)}
                       placeholder="Must run on Node.js 24 without external cloud databases..."
                     />
                   </Field>
-                  <Field label="OUT OF SCOPE" hint="Explicit exclusions prevent scope creep.">
+                  <Field label="Out of scope" hint="Explicit exclusions prevent scope creep.">
                     <textarea
-                      className="h-24 w-full rounded-none border-2 border-black bg-white p-3 text-xs font-medium leading-relaxed outline-none focus:border-swiss-red resize-none"
+                      className="h-24 w-full rounded-lg border border-zinc-200 bg-white p-3 text-xs leading-relaxed outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100 resize-none shadow-2xs"
                       value={nonGoals}
                       onChange={e => setNonGoals(e.target.value)}
                       placeholder="No custom authentication service in milestone 1..."
@@ -161,13 +161,13 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
               </BriefSection>
             </div>
 
-            {error && <p role="alert" className="mx-6 mb-4 rounded-none border-2 border-black bg-swiss-red p-3 text-xs font-mono font-bold text-white uppercase">{error}</p>}
-            <div className="flex flex-col gap-3 border-t-2 border-black bg-swiss-gray px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-[10px] font-mono font-bold uppercase text-neutral-600">
-                REQUIRED: NAME, PRIMARY PERSONA, PROBLEM, AND OUTCOME
+            {error && <p role="alert" className="mx-6 mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700">{error}</p>}
+            <div className="flex flex-col gap-3 border-t border-zinc-100 bg-zinc-50 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-zinc-500">
+                Required: name, primary persona, problem, and desired outcome.
               </p>
               <Button onClick={start} disabled={!!busy || briefSignals < 4}>
-                {busy || 'COMMENCE COUNCIL'} <ArrowRight className="h-4 w-4 ml-1" />
+                {busy || 'Commence council'} <ArrowRight className="h-4 w-4 ml-1" />
               </Button>
             </div>
           </Card>
@@ -179,49 +179,49 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
   const tabs: BlueprintTab[] = ['market', 'prd', 'journeys', 'architecture', 'roadmap']
   const studioStage = blueprint ? 4 : research ? 3 : 2
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto xl:overflow-hidden">
-      <div role="region" className="flex shrink-0 items-center overflow-x-auto rounded-none border-2 border-black bg-white px-4 py-2.5" aria-label="Idea shaping progress">
-        <JourneyItem icon={Lightbulb} label="01. BRIEF" state="done" />
-        <JourneyItem icon={MessageSquareText} label="02. COUNCIL" state={studioStage === 2 ? 'active' : 'done'} />
-        <JourneyItem icon={Search} label="03. EVIDENCE" state={studioStage === 3 ? 'active' : studioStage > 3 ? 'done' : 'next'} />
-        <JourneyItem icon={FileText} label="04. BLUEPRINT" state={studioStage === 4 ? 'active' : 'next'} />
-        <JourneyItem icon={FileCheck2} label="05. DELIVERY PLAN" state="next" last />
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto xl:overflow-hidden p-4">
+      <div role="region" className="flex shrink-0 items-center overflow-x-auto rounded-xl border border-zinc-200 bg-white px-4 py-2.5 shadow-2xs" aria-label="Idea shaping progress">
+        <JourneyItem icon={Lightbulb} label="01. Brief" state="done" />
+        <JourneyItem icon={MessageSquareText} label="02. Council" state={studioStage === 2 ? 'active' : 'done'} />
+        <JourneyItem icon={Search} label="03. Evidence" state={studioStage === 3 ? 'active' : studioStage > 3 ? 'done' : 'next'} />
+        <JourneyItem icon={FileText} label="04. Blueprint" state={studioStage === 4 ? 'active' : 'next'} />
+        <JourneyItem icon={FileCheck2} label="05. Delivery plan" state="next" last />
       </div>
       <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(320px,0.85fr)_minmax(520px,1.35fr)]">
-        <Card className="flex min-h-[520px] flex-col overflow-hidden xl:min-h-0 border-2 border-black bg-white rounded-none">
-          <div className="flex items-center justify-between border-b-2 border-black p-4 bg-white">
+        <Card className="flex min-h-[520px] flex-col overflow-hidden xl:min-h-0 border border-zinc-200 bg-white rounded-xl shadow-2xs">
+          <div className="flex items-center justify-between border-b border-zinc-100 p-4 bg-white">
             <div>
-              <div className="text-xs font-mono font-black uppercase tracking-wider text-black">[COUNCIL ROOM]</div>
-              <div className="mt-0.5 text-xs font-bold text-neutral-600 uppercase truncate">{projectName}</div>
+              <div className="text-xs font-semibold text-zinc-900">Council room</div>
+              <div className="mt-0.5 text-xs text-zinc-500 truncate">{projectName}</div>
             </div>
-            <span className="rounded-none border-2 border-black bg-swiss-gray px-2 py-0.5 text-[9px] font-mono font-black uppercase text-black">
-              TRANSCRIPT PERSISTED
+            <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-0.5 text-[10px] font-medium text-zinc-600">
+              Transcript saved
             </span>
           </div>
-          <div className="flex-1 space-y-3 overflow-y-auto p-4 bg-swiss-gray swiss-dots">
+          <div className="flex-1 space-y-3 overflow-y-auto p-4 bg-zinc-50/40 swiss-dots">
             {messages.map((message: any) => (
               <div
                 key={message.id}
-                className={`max-w-[88%] rounded-none border-2 border-black p-3.5 text-xs leading-relaxed ${
+                className={`max-w-[88%] rounded-xl border p-3.5 text-xs leading-relaxed shadow-2xs ${
                   message.role === 'user'
-                    ? 'ml-auto bg-black text-white'
-                    : 'bg-white text-black'
+                    ? 'ml-auto bg-zinc-900 text-white border-zinc-900'
+                    : 'bg-white text-zinc-900 border-zinc-200/80'
                 }`}
               >
-                <div className={`mb-1 text-[9px] font-mono font-black uppercase tracking-wider ${message.role === 'user' ? 'text-swiss-red' : 'text-neutral-500'}`}>
-                  {message.role === 'user' ? '[OWNER]' : `[${message.agent?.title?.toUpperCase() || 'COUNCIL'}]`}
+                <div className={`mb-1 text-[10px] font-semibold ${message.role === 'user' ? 'text-[#ea3a12]' : 'text-zinc-400'}`}>
+                  {message.role === 'user' ? 'Owner' : (message.agent?.title || 'Council')}
                 </div>
                 <div className="whitespace-pre-wrap font-sans">{message.content}</div>
               </div>
             ))}
           </div>
-          <div className="border-t-2 border-black p-3 bg-white">
+          <div className="border-t border-zinc-100 p-3 bg-white">
             <div className="mb-2 flex flex-wrap gap-1.5">
               {['@pm challenge market fit', '@designer map critical journey', '@architect identify technical risks', '@pjm find viable MVP'].map(x => (
                 <button
                   key={x}
                   onClick={() => send(x)}
-                  className="rounded-none border-2 border-black bg-white px-2.5 py-1 text-[10px] font-mono font-bold uppercase hover:bg-black hover:text-white transition-colors"
+                  className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[11px] text-zinc-600 hover:bg-zinc-50 transition-colors shadow-2xs"
                 >
                   {x}
                 </button>
@@ -243,44 +243,44 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
 
         <div className="flex min-h-[520px] flex-col gap-3 xl:min-h-0">
           <div className="grid grid-cols-3 gap-2">
-            <Stage n="01" title="RESEARCH" done={!!research} active={busy === 'Researching market'} onClick={researchMarket} disabled={!!busy} />
-            <Stage n="02" title="BLUEPRINT" done={!!blueprint} active={busy === 'Synthesizing blueprint'} onClick={synthesize} disabled={!!busy || !research} />
-            <Stage n="03" title="INITIALIZE" done={false} active={busy === 'Creating delivery plan'} onClick={() => {}} disabled />
+            <Stage n="01" title="Research" done={!!research} active={busy === 'Researching market'} onClick={researchMarket} disabled={!!busy} />
+            <Stage n="02" title="Blueprint" done={!!blueprint} active={busy === 'Synthesizing blueprint'} onClick={synthesize} disabled={!!busy || !research} />
+            <Stage n="03" title="Initialize" done={false} active={busy === 'Creating delivery plan'} onClick={() => {}} disabled />
           </div>
-          {error && <div className="rounded-none border-2 border-black bg-swiss-red p-3 text-xs font-mono font-bold text-white uppercase">{error}</div>}
-          <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-2 border-black bg-white rounded-none">
+          {error && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700">{error}</div>}
+          <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white rounded-xl shadow-2xs">
             {!blueprint ? (
-              <div className="flex flex-1 flex-col items-center justify-center px-8 text-center bg-swiss-gray border-dashed border-black/20 m-3 rounded-none">
-                <div className="w-12 h-12 bg-black text-white flex items-center justify-center mb-3 text-sm font-mono font-black border-2 border-black">
-                  [E]
+              <div className="flex flex-1 flex-col items-center justify-center px-8 text-center bg-zinc-50/50 border border-dashed border-zinc-200 m-4 rounded-xl">
+                <div className="w-12 h-12 rounded-xl bg-zinc-100 text-zinc-700 flex items-center justify-center mb-3 text-sm font-semibold border border-zinc-200">
+                  E
                 </div>
-                <h2 className="text-xs font-black uppercase tracking-wider text-black font-mono">
-                  {research ? 'EMPIRICAL EVIDENCE READY' : 'GATHER EVIDENCE BEFORE DEFINING BLUEPRINT'}
+                <h2 className="text-sm font-semibold text-zinc-900">
+                  {research ? 'Empirical evidence ready' : 'Gather evidence before defining blueprint'}
                 </h2>
-                <p className="mt-2 max-w-md text-xs font-medium text-neutral-600 leading-relaxed">
+                <p className="mt-1.5 max-w-md text-xs text-zinc-500 leading-relaxed">
                   {research
-                    ? `${research.sources?.length || 0} sources and ${research.competitors?.length || 0} competitors cataloged. Synthesis will compile this into specification REQ-* items.`
+                    ? `${research.sources?.length || 0} sources and ${research.competitors?.length || 0} competitors cataloged. Synthesis will compile this into specification items.`
                     : 'Market research is local-first, verifiable, and fails closed when evidence is insufficient.'}
                 </p>
                 {research ? (
                   <Button className="mt-4" onClick={synthesize} disabled={!!busy}>
-                    {busy || 'SYNTHESIZE BLUEPRINT'}
+                    {busy || 'Synthesize blueprint'}
                   </Button>
                 ) : (
                   <Button className="mt-4" onClick={researchMarket} disabled={!!busy}>
-                    {busy || 'GATHER MARKET EVIDENCE'}
+                    {busy || 'Gather market evidence'}
                   </Button>
                 )}
               </div>
             ) : (
               <>
-                <div className="flex overflow-x-auto border-b-2 border-black px-3 pt-2 bg-white divide-x-2 divide-black">
+                <div className="flex overflow-x-auto border-b border-zinc-100 px-3 pt-2 bg-white gap-1">
                   {tabs.map(item => (
                     <button
                       key={item}
                       onClick={() => setTab(item)}
-                      className={`px-4 py-2 text-xs font-mono font-black uppercase tracking-wider transition-colors ${
-                        tab === item ? 'bg-black text-white' : 'text-black hover:bg-swiss-gray'
+                      className={`px-3.5 py-1.5 text-xs font-medium capitalize rounded-lg transition-colors ${
+                        tab === item ? 'bg-zinc-900 text-white shadow-xs' : 'text-zinc-600 hover:bg-zinc-100'
                       }`}
                     >
                       {item}
@@ -290,7 +290,7 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
                 <div className="flex-1 overflow-y-auto p-5 bg-white">
                   <BlueprintPanel tab={tab} blueprint={blueprint} research={research} />
                 </div>
-                <div className="border-t-2 border-black bg-swiss-gray p-4">
+                <div className="border-t border-zinc-100 bg-zinc-50 p-4">
                   <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
                     <Input
                       value={repoPath}
@@ -299,11 +299,11 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
                       className="font-mono text-xs"
                     />
                     <Button variant="primary" onClick={initialize} disabled={!!busy || !repoPath.trim()}>
-                      APPROVE PRD & INITIALIZE <ArrowRight className="ml-2 h-4 w-4" />
+                      Approve PRD & initialize <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   </div>
-                  <p className="mt-2 text-[10px] font-mono font-bold uppercase text-neutral-600">
-                    APPROVAL IMMUTABLY BINDS REQ-* IDENTIFIERS TO DELIVERY TASKS
+                  <p className="mt-2 text-[11px] text-zinc-500">
+                    Approval immutably binds requirement identifiers to delivery tasks.
                   </p>
                 </div>
               </>
@@ -317,17 +317,17 @@ export function IdeaStudioView({ onProjectInitialized }: IdeaStudioViewProps) {
 
 function StudioStep({ n, label, detail, active = false, done = false }: { n: string; label: string; detail: string; active?: boolean; done?: boolean }) {
   return (
-    <li className={`flex min-w-[122px] items-center gap-2 rounded-none px-3 py-2 border-2 transition-colors lg:min-w-0 lg:gap-3 ${
-      active ? 'bg-black text-white border-black' : 'bg-white text-black border-transparent hover:border-black'
+    <li className={`flex min-w-[122px] items-center gap-2.5 rounded-lg px-3 py-2 transition-colors lg:min-w-0 lg:gap-3 ${
+      active ? 'bg-zinc-900 text-white shadow-xs' : 'text-zinc-700 hover:bg-zinc-100'
     }`}>
-      <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-none border font-mono text-[10px] font-black ${
-        active ? 'border-white bg-white text-black' : done ? 'border-black bg-black text-white' : 'border-black bg-swiss-gray text-black'
+      <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full font-mono text-[10px] font-semibold ${
+        active ? 'bg-white text-zinc-900' : done ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-600'
       }`}>
         {done ? '✓' : n}
       </span>
       <span>
-        <span className={`block text-[10px] font-black uppercase tracking-wider font-mono ${active ? 'text-white' : 'text-black'}`}>{label}</span>
-        <span className={`hidden text-[9px] font-medium lg:block ${active ? 'text-neutral-300' : 'text-neutral-500'}`}>{detail}</span>
+        <span className={`block text-xs font-medium ${active ? 'text-white font-semibold' : 'text-zinc-800'}`}>{label}</span>
+        <span className={`hidden text-[10px] lg:block ${active ? 'text-zinc-300' : 'text-zinc-400'}`}>{detail}</span>
       </span>
     </li>
   )
@@ -335,13 +335,13 @@ function StudioStep({ n, label, detail, active = false, done = false }: { n: str
 
 function BriefSection({ icon: Icon, title, description, children }: any) {
   return (
-    <section className="grid gap-4 border-b-2 border-black pb-6 last:border-0 last:pb-0 md:grid-cols-[180px_minmax(0,1fr)]">
+    <section className="grid gap-4 border-b border-zinc-100 pb-6 last:border-0 last:pb-0 md:grid-cols-[180px_minmax(0,1fr)]">
       <div>
-        <div className="flex items-center gap-2 text-xs font-black uppercase font-mono tracking-wider text-black">
-          <Icon size={14} strokeWidth={2.5} className="text-swiss-red" />
+        <div className="flex items-center gap-2 text-xs font-semibold text-zinc-900">
+          <Icon size={14} strokeWidth={2} className="text-[#ea3a12]" />
           {title}
         </div>
-        <p className="mt-1.5 text-[10px] font-medium leading-relaxed text-neutral-600">{description}</p>
+        <p className="mt-1 text-xs text-zinc-500 leading-relaxed">{description}</p>
       </div>
       <div>{children}</div>
     </section>
@@ -351,9 +351,9 @@ function BriefSection({ icon: Icon, title, description, children }: any) {
 function Field({ label, hint, children }: { label: string; hint: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-black font-mono">{label}</span>
+      <span className="mb-1 block text-xs font-medium text-zinc-700">{label}</span>
       {children}
-      <span className="mt-1.5 block text-[9px] font-medium text-neutral-500">{hint}</span>
+      <span className="mt-1 block text-[11px] text-zinc-400">{hint}</span>
     </label>
   )
 }
@@ -361,14 +361,14 @@ function Field({ label, hint, children }: { label: string; hint: string; childre
 function JourneyItem({ icon: Icon, label, state, last = false }: any) {
   return (
     <>
-      <div className={`flex shrink-0 items-center gap-2 rounded-none px-3 py-1.5 border-2 border-black text-[10px] font-mono font-black uppercase ${
-        state === 'active' ? 'bg-black text-white' : state === 'done' ? 'bg-swiss-gray text-black' : 'bg-white text-neutral-400'
+      <div className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium ${
+        state === 'active' ? 'bg-zinc-900 text-white shadow-xs' : state === 'done' ? 'bg-zinc-100 text-zinc-800' : 'bg-white text-zinc-400'
       }`}>
         <Icon size={13} />
         <span>{label}</span>
-        {state === 'done' && <span aria-hidden="true" className="text-emerald-700 font-bold ml-1">✓</span>}
+        {state === 'done' && <span aria-hidden="true" className="text-emerald-600 font-semibold ml-1">✓</span>}
       </div>
-      {!last && <div className="mx-1 h-[2px] w-4 shrink-0 bg-black sm:w-8" />}
+      {!last && <div className="mx-1 h-[1px] w-4 shrink-0 bg-zinc-200 sm:w-8" />}
     </>
   )
 }
@@ -378,19 +378,19 @@ function Stage({ n, title, done, active, onClick, disabled }: any) {
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-none border-2 border-black p-3 text-left transition-colors duration-150 ${
+      className={`rounded-lg border p-3 text-left transition-all duration-150 ${
         done
-          ? 'bg-black text-white'
+          ? 'bg-zinc-900 text-white border-zinc-900 shadow-xs'
           : active
-          ? 'bg-swiss-red text-white'
-          : 'bg-white text-black hover:bg-swiss-gray'
+          ? 'bg-[#ea3a12] text-white border-[#ea3a12] shadow-xs'
+          : 'bg-white text-zinc-800 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300 shadow-2xs'
       } disabled:cursor-not-allowed disabled:opacity-40`}
     >
       <div className="flex items-center gap-2">
-        <span className="flex h-5 w-5 items-center justify-center rounded-none border border-black bg-white text-black text-[10px] font-mono font-black">
+        <span className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-800 text-[10px] font-bold font-mono">
           {done ? '✓' : n}
         </span>
-        <span className="text-xs font-mono font-black uppercase tracking-wider">{active ? `${title}…` : title}</span>
+        <span className="text-xs font-medium">{active ? `${title}…` : title}</span>
       </div>
     </button>
   )
@@ -399,26 +399,26 @@ function Stage({ n, title, done, active, onClick, disabled }: any) {
 function BlueprintPanel({ tab, blueprint, research }: any) {
   if (tab === 'market') return (
     <div className="space-y-4">
-      <Section title="VALUE PROPOSITION">
-        <p className="font-medium text-neutral-800">{blueprint.market.coreValueProp}</p>
-        <p className="mt-2 text-xs font-mono text-swiss-red uppercase font-bold">TARGET: {blueprint.market.targetAudience}</p>
+      <Section title="Value proposition">
+        <p className="text-zinc-800">{blueprint.market.coreValueProp}</p>
+        <p className="mt-2 text-xs font-mono text-[#ea3a12]">Target: {blueprint.market.targetAudience}</p>
       </Section>
       <div className="grid gap-3 md:grid-cols-2">
         {blueprint.market.competitors.map((x: any) => (
-          <Section key={x.name} title={x.name.toUpperCase()}>
-            <p className="text-neutral-700">{x.positioning}</p>
+          <Section key={x.name} title={x.name}>
+            <p className="text-zinc-600">{x.positioning}</p>
             {x.url && (
-              <a className="mt-2 inline-flex items-center gap-1 font-mono font-bold text-swiss-red text-[11px] hover:underline uppercase" href={x.url} target="_blank" rel="noreferrer">
-                EVIDENCE SOURCE <ExternalLink className="h-3 w-3" />
+              <a className="mt-2 inline-flex items-center gap-1 text-xs text-[#ea3a12] hover:underline" href={x.url} target="_blank" rel="noreferrer">
+                Source <ExternalLink className="h-3 w-3" />
               </a>
             )}
           </Section>
         ))}
       </div>
-      <Section title="EVIDENCE SOURCES">
-        <div className="space-y-2 font-mono text-xs">
+      <Section title="Evidence sources">
+        <div className="space-y-2 text-xs">
           {research?.sources?.map((x: any) => (
-            <a key={x.url} href={x.url} target="_blank" rel="noreferrer" className="block text-black hover:text-swiss-red font-bold underline truncate">
+            <a key={x.url} href={x.url} target="_blank" rel="noreferrer" className="block text-zinc-800 hover:text-[#ea3a12] underline truncate">
               · {x.title}
             </a>
           ))}
@@ -429,17 +429,17 @@ function BlueprintPanel({ tab, blueprint, research }: any) {
 
   if (tab === 'prd') return (
     <div className="space-y-3">
-      <Section title="EXECUTIVE SUMMARY">
-        <p className="font-medium text-neutral-800 leading-relaxed">{blueprint.prd.executiveSummary}</p>
+      <Section title="Executive summary">
+        <p className="text-zinc-700 leading-relaxed">{blueprint.prd.executiveSummary}</p>
       </Section>
       {blueprint.prd.requirements.map((x: any) => (
-        <Section key={x.id} title={`[${x.id}] ${x.title.toUpperCase()}`}>
-          <p className="text-neutral-700 leading-relaxed">{x.description}</p>
-          <div className="mt-3 space-y-1.5 border-t border-black/15 pt-2">
-            <span className="text-[10px] font-mono font-black uppercase text-neutral-500">ACCEPTANCE CRITERIA</span>
+        <Section key={x.id} title={`${x.id} · ${x.title}`}>
+          <p className="text-zinc-600 leading-relaxed">{x.description}</p>
+          <div className="mt-3 space-y-1.5 border-t border-zinc-100 pt-2">
+            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Acceptance criteria</span>
             {x.acceptanceCriteria.map((c: string) => (
-              <div key={c} className="flex gap-2 text-neutral-800 font-medium">
-                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-700" />
+              <div key={c} className="flex gap-2 text-zinc-700 text-xs">
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
                 {c}
               </div>
             ))}
@@ -452,12 +452,12 @@ function BlueprintPanel({ tab, blueprint, research }: any) {
   if (tab === 'journeys') return (
     <div className="space-y-3">
       {blueprint.userJourneys.map((x: any) => (
-        <Section key={`${x.persona}-${x.goal}`} title={`${x.persona.toUpperCase()} → ${x.goal.toUpperCase()}`}>
+        <Section key={`${x.persona}-${x.goal}`} title={`${x.persona} → ${x.goal}`}>
           <ol className="space-y-2">
             {x.steps.map((s: string, i: number) => (
-              <li key={s} className="flex items-start gap-2">
-                <span className="font-mono font-bold text-swiss-red text-[11px] shrink-0">{i + 1}.</span>
-                <span className="text-neutral-800 font-medium">{s}</span>
+              <li key={s} className="flex items-start gap-2 text-xs">
+                <span className="font-mono font-medium text-[#ea3a12] shrink-0">{i + 1}.</span>
+                <span className="text-zinc-700">{s}</span>
               </li>
             ))}
           </ol>
@@ -468,12 +468,12 @@ function BlueprintPanel({ tab, blueprint, research }: any) {
 
   if (tab === 'architecture') return (
     <div className="space-y-3">
-      <Section title="SYSTEM ARCHITECTURE & RUNTIME">
-        <p className="font-mono text-xs font-bold text-black">{blueprint.architecture.techStack}</p>
+      <Section title="System architecture & runtime">
+        <p className="font-mono text-xs text-zinc-800 font-medium">{blueprint.architecture.techStack}</p>
       </Section>
       {blueprint.architecture.apiContracts.map((x: any) => (
-        <Section key={`${x.method}-${x.path}`} title={`${x.method.toUpperCase()} ${x.path}`}>
-          <p className="text-neutral-700 font-medium">{x.purpose}</p>
+        <Section key={`${x.method}-${x.path}`} title={`${x.method} ${x.path}`}>
+          <p className="text-zinc-600 text-xs">{x.purpose}</p>
         </Section>
       ))}
     </div>
@@ -482,11 +482,11 @@ function BlueprintPanel({ tab, blueprint, research }: any) {
   return (
     <div className="space-y-3">
       {blueprint.roadmap.milestones.map((x: any) => (
-        <Section key={x.title} title={x.title.toUpperCase()}>
+        <Section key={x.title} title={x.title}>
           {x.tasks.map((t: any) => (
-            <div key={t.title} className="mb-2 rounded-none border-2 border-black bg-white p-3">
-              <strong className="font-black uppercase text-black block">{t.title}</strong>
-              <p className="mt-1 text-neutral-600 font-medium">{t.description}</p>
+            <div key={t.title} className="mb-2 rounded-lg border border-zinc-200 bg-white p-3 shadow-2xs">
+              <strong className="font-semibold text-zinc-900 block text-xs">{t.title}</strong>
+              <p className="mt-1 text-zinc-500 text-xs">{t.description}</p>
             </div>
           ))}
         </Section>
@@ -497,8 +497,8 @@ function BlueprintPanel({ tab, blueprint, research }: any) {
 
 function Section({ title, children }: any) {
   return (
-    <section className="rounded-none border-2 border-black bg-swiss-gray p-4 text-xs leading-relaxed">
-      <h3 className="mb-2 font-mono font-black uppercase tracking-wider text-black border-b border-black/15 pb-1">
+    <section className="rounded-xl border border-zinc-200/80 bg-zinc-50/50 p-4 text-xs leading-relaxed shadow-2xs">
+      <h3 className="mb-2 font-semibold text-zinc-900 border-b border-zinc-100 pb-1">
         {title}
       </h3>
       {children}

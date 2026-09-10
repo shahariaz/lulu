@@ -85,11 +85,10 @@ export function PreviewPanel({ task }: PreviewPanelProps) {
 
   if (!task) {
     return (
-      <Card className="h-full flex items-center justify-center text-center p-8 bg-swiss-gray border-2 border-black rounded-none">
+      <Card className="h-full flex items-center justify-center text-center p-8 bg-zinc-50 border border-zinc-200 rounded-xl">
         <div>
-          <div className="text-xs font-mono font-black uppercase tracking-widest text-neutral-400 mb-1">[EMPTY STATE]</div>
-          <p className="text-xs font-bold uppercase tracking-wider text-black">
-            SELECT A TASK TO LAUNCH AN ISOLATED RUNTIME PREVIEW
+          <p className="text-xs font-medium text-zinc-500">
+            Select a task on the board to launch an isolated runtime preview
           </p>
         </div>
       </Card>
@@ -105,12 +104,11 @@ export function PreviewPanel({ task }: PreviewPanelProps) {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-white">
       {/* Control Toolbar */}
-      <div className="border-b-2 border-black bg-white px-5 py-3 shrink-0">
+      <div className="border-b border-zinc-200 bg-white px-5 py-3 shrink-0">
         <div className="flex items-center justify-between flex-wrap gap-3">
           {/* Left: Server Status & Task Info */}
           <div className="flex items-center gap-2.5">
-            <span className="text-[10px] font-mono font-black text-[#ff3000] uppercase">[TARGET]</span>
-            <span className="text-xs font-black uppercase tracking-tight text-black truncate max-w-[240px]">
+            <span className="text-xs font-semibold text-zinc-900 truncate max-w-[240px]">
               {task.title}
             </span>
             <Badge
@@ -122,14 +120,14 @@ export function PreviewPanel({ task }: PreviewPanelProps) {
                   : 'default'
               }
             >
-              {previewStatus === 'RUNNING' ? '● LIVE' : previewStatus}
+              {previewStatus === 'RUNNING' ? '● Live' : previewStatus}
             </Badge>
             {previewUrl && (
               <a
                 href={previewUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[11px] font-mono font-bold text-[#ff3000] hover:underline flex items-center gap-1 uppercase"
+                className="text-xs font-mono font-medium text-[#ea3a12] hover:underline flex items-center gap-1"
               >
                 {previewUrl} ↗
               </a>
@@ -137,30 +135,30 @@ export function PreviewPanel({ task }: PreviewPanelProps) {
           </div>
 
           {/* Middle: Viewport Switcher */}
-          <div className="flex items-center border-2 border-black bg-white divide-x-2 divide-black">
+          <div className="flex items-center rounded-lg border border-zinc-200 bg-zinc-50 p-0.5 gap-0.5 shadow-2xs">
             <button
               onClick={() => setViewport('desktop')}
-              className={`px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider transition-colors ${
-                viewport === 'desktop' ? 'bg-black text-white' : 'text-black hover:bg-neutral-100'
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                viewport === 'desktop' ? 'bg-white text-zinc-900 shadow-2xs' : 'text-zinc-500 hover:text-zinc-800'
               }`}
             >
-              DESKTOP
+              Desktop
             </button>
             <button
               onClick={() => setViewport('tablet')}
-              className={`px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider transition-colors ${
-                viewport === 'tablet' ? 'bg-black text-white' : 'text-black hover:bg-neutral-100'
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                viewport === 'tablet' ? 'bg-white text-zinc-900 shadow-2xs' : 'text-zinc-500 hover:text-zinc-800'
               }`}
             >
-              TABLET [768]
+              Tablet
             </button>
             <button
               onClick={() => setViewport('mobile')}
-              className={`px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider transition-colors ${
-                viewport === 'mobile' ? 'bg-black text-white' : 'text-black hover:bg-neutral-100'
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                viewport === 'mobile' ? 'bg-white text-zinc-900 shadow-2xs' : 'text-zinc-500 hover:text-zinc-800'
               }`}
             >
-              MOBILE [375]
+              Mobile
             </button>
           </div>
 
@@ -177,16 +175,16 @@ export function PreviewPanel({ task }: PreviewPanelProps) {
               size="sm"
               onClick={() => setShowLogs(!showLogs)}
             >
-              {showLogs ? 'HIDE LOGS' : 'LOGS'}
+              {showLogs ? 'Hide logs' : 'Logs'}
             </Button>
 
             {previewStatus === 'RUNNING' ? (
               <Button variant="danger" size="sm" onClick={handleStop} disabled={loading}>
-                STOP PREVIEW
+                Stop preview
               </Button>
             ) : (
               <Button variant="primary" size="sm" onClick={handleStart} disabled={loading}>
-                {loading ? 'STARTING...' : 'START PREVIEW'}
+                {loading ? 'Starting...' : 'Start preview'}
               </Button>
             )}
           </div>
@@ -194,9 +192,9 @@ export function PreviewPanel({ task }: PreviewPanelProps) {
       </div>
 
       {/* Main Preview Area */}
-      <div className="flex-1 flex flex-col items-center justify-center bg-neutral-100 swiss-grid-pattern p-4 overflow-hidden relative">
+      <div className="flex-1 flex flex-col items-center justify-center bg-zinc-50 p-4 overflow-hidden relative">
         {previewUrl && previewStatus === 'RUNNING' ? (
-          <div className={`h-full transition-all duration-150 border-2 border-black bg-white rounded-none overflow-hidden flex flex-col ${viewportWidths[viewport]}`}>
+          <div className={`h-full transition-all duration-150 border border-zinc-200/90 bg-white rounded-xl overflow-hidden flex flex-col shadow-sm ${viewportWidths[viewport]}`}>
             <iframe
               ref={iframeRef}
               src={previewUrl}
@@ -206,34 +204,34 @@ export function PreviewPanel({ task }: PreviewPanelProps) {
             />
           </div>
         ) : (
-          <div className="text-center p-8 flex flex-col items-center gap-3 border-2 border-black bg-white max-w-sm">
-            <div className="w-12 h-12 bg-black text-white flex items-center justify-center text-sm font-mono font-black border-2 border-black">
-              [P]
+          <div className="text-center p-8 flex flex-col items-center gap-3 border border-zinc-200 bg-white rounded-xl shadow-xs max-w-sm">
+            <div className="w-12 h-12 rounded-xl bg-zinc-100 text-zinc-700 flex items-center justify-center text-sm font-bold border border-zinc-200">
+              👁
             </div>
             <div>
-              <h4 className="text-xs font-black uppercase tracking-wider mb-1">PREVIEW ENVIRONMENT INACTIVE</h4>
-              <p className="text-xs font-medium text-neutral-600 leading-relaxed">
+              <h4 className="text-sm font-semibold text-zinc-900 mb-1">Preview server inactive</h4>
+              <p className="text-xs text-zinc-500 leading-relaxed">
                 Click below to spin up an isolated local dev server inside the container sandbox.
               </p>
             </div>
             <Button variant="primary" size="sm" onClick={handleStart} disabled={loading}>
-              {loading ? 'INITIALIZING...' : 'LAUNCH LIVE PREVIEW'}
+              {loading ? 'Initializing...' : 'Launch live preview'}
             </Button>
           </div>
         )}
 
         {/* Slide-out Terminal Logs Drawer */}
         {showLogs && (
-          <div className="absolute bottom-0 inset-x-0 h-48 bg-black text-white border-t-2 border-black p-3 flex flex-col z-20">
-            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-white/20 text-[10px] font-mono font-black uppercase tracking-wider text-neutral-400">
-              <span>DEV SERVER STREAM [STDOUT / STDERR]</span>
-              <button onClick={() => setShowLogs(false)} className="hover:text-swiss-red font-bold">✕ CLOSE</button>
+          <div className="absolute bottom-0 inset-x-0 h-48 bg-zinc-900 text-zinc-200 border-t border-zinc-800 p-3 flex flex-col z-20 shadow-xl">
+            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-zinc-800 text-[11px] font-mono text-zinc-400">
+              <span>Dev server stream (stdout / stderr)</span>
+              <button onClick={() => setShowLogs(false)} className="hover:text-white font-medium">✕ Close</button>
             </div>
-            <div className="flex-1 overflow-y-auto font-mono text-[11px] text-neutral-200 whitespace-pre-wrap selection:bg-swiss-red selection:text-white">
+            <div className="flex-1 overflow-y-auto font-mono text-xs text-zinc-300 whitespace-pre-wrap selection:bg-zinc-700">
               {logs.stdout || logs.stderr ? (
                 <>
                   {logs.stdout && <span>{logs.stdout}</span>}
-                  {logs.stderr && <span className="text-swiss-red font-bold">{logs.stderr}</span>}
+                  {logs.stderr && <span className="text-rose-400 font-medium">{logs.stderr}</span>}
                 </>
               ) : (
                 'No runtime logs recorded.'

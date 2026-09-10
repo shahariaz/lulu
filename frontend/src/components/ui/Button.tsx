@@ -8,21 +8,21 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'default', size = 'md', ...props }, ref) => {
-    const base = 'inline-flex items-center justify-center gap-2 font-bold uppercase tracking-wider transition-colors duration-150 ease-linear rounded-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff3000] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:bg-neutral-200 disabled:text-neutral-500 disabled:border-neutral-400 disabled:cursor-not-allowed select-none active:translate-y-[1px]'
+    const base = 'inline-flex items-center justify-center gap-2 font-medium text-xs tracking-normal transition-colors duration-150 ease-out rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:bg-zinc-100 disabled:text-zinc-400 disabled:border-zinc-200 disabled:cursor-not-allowed select-none active:scale-[0.98]'
 
     const variants = {
-      default: 'bg-black text-white hover:bg-[#ff3000] hover:text-white border-2 border-black hover:border-[#ff3000]',
-      primary: 'bg-[#ff3000] text-white hover:bg-black border-2 border-black hover:border-black',
-      secondary: 'bg-white text-black border-2 border-black hover:bg-black hover:text-white',
-      outline: 'border-2 border-black bg-white hover:bg-neutral-100 text-black',
-      danger: 'bg-[#ff3000] text-white hover:bg-black border-2 border-black',
-      ghost: 'bg-transparent hover:bg-neutral-100 text-black border-2 border-transparent hover:border-black',
+      default: 'bg-zinc-900 text-white hover:bg-zinc-800 border border-zinc-900 shadow-xs',
+      primary: 'bg-[#ea3a12] text-white hover:bg-[#c82e0a] border border-[#ea3a12] shadow-xs',
+      secondary: 'bg-white text-zinc-800 border border-zinc-200 hover:bg-zinc-50 shadow-2xs',
+      outline: 'border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-800 shadow-2xs',
+      danger: 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100',
+      ghost: 'bg-transparent hover:bg-zinc-100 text-zinc-700 border border-transparent',
     }
 
     const sizes = {
       sm: 'h-8 px-3 text-xs',
       md: 'h-9 px-4 text-xs',
-      lg: 'h-11 px-6 text-sm',
+      lg: 'h-10 px-5 text-sm',
     }
 
     return (

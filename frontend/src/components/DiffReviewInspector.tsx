@@ -21,11 +21,10 @@ export function DiffReviewInspector({
 }: DiffReviewInspectorProps) {
   if (!task) {
     return (
-      <Card className="h-full flex items-center justify-center text-center p-8 bg-swiss-gray border-2 border-black">
+      <Card className="h-full flex items-center justify-center text-center p-8 bg-zinc-50 border border-zinc-200 rounded-xl">
         <div>
-          <div className="text-xs font-mono font-black uppercase tracking-widest text-neutral-400 mb-1">[EMPTY STATE]</div>
-          <p className="text-xs font-bold uppercase tracking-wider text-black">
-            SELECT A TASK TO INSPECT DIFFS, TEST LOGS, AND REVIEW VERDICTS
+          <p className="text-xs font-medium text-zinc-500">
+            Select a task to inspect diffs, test logs, and review verdicts
           </p>
         </div>
       </Card>
@@ -35,51 +34,49 @@ export function DiffReviewInspector({
   return (
     <div className="flex flex-col gap-3 h-full overflow-y-auto pr-1">
       {/* Header Info */}
-      <Card className="p-4 border-2 border-black bg-white rounded-none">
+      <Card className="p-4 border border-zinc-200/80 bg-white rounded-xl shadow-2xs">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-mono font-black text-[#ff3000]">[TASK]</span>
-            <span className="text-xs font-black uppercase tracking-tight text-black">{task.title}</span>
+            <span className="text-xs font-semibold text-zinc-900">{task.title}</span>
             <Badge variant={task.status.toLowerCase() as any}>{task.status}</Badge>
           </div>
           {candidateCommitSha && (
-            <span className="text-[10px] font-mono font-bold bg-black text-white px-2 py-0.5 border border-black uppercase">
-              SHA: <span className="text-[#ff3000]">{formatSha(candidateCommitSha)}</span>
+            <span className="text-[10px] font-mono font-medium bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-md border border-zinc-200">
+              Candidate: <span className="font-semibold text-zinc-900">{formatSha(candidateCommitSha)}</span>
             </span>
           )}
         </div>
-        <p className="text-xs font-medium text-neutral-600">{task.description || 'No description provided.'}</p>
+        <p className="text-xs text-zinc-500">{task.description || 'No description provided.'}</p>
       </Card>
 
       {/* Specialist Review Card */}
       {reviewRecord && (
-        <Card className="p-4 border-2 border-black bg-white rounded-none">
-          <div className="flex items-center justify-between mb-2 border-b-2 border-black pb-2">
+        <Card className="p-4 border border-zinc-200/80 bg-white rounded-xl shadow-2xs">
+          <div className="flex items-center justify-between mb-2 border-b border-zinc-100 pb-2">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-black uppercase text-purple-900">[REVIEW PASS]</span>
-              <span className="text-xs font-black uppercase tracking-wider text-black">Specialist Audit</span>
+              <span className="text-xs font-semibold text-zinc-900">Specialist review</span>
               <Badge variant={reviewRecord.verdict === 'APPROVE' ? 'done' : 'blocked'}>
-                {reviewRecord.verdict}
+                {reviewRecord.verdict === 'APPROVE' ? 'Approved' : 'Changes requested'}
               </Badge>
             </div>
-            <span className="text-[10px] text-neutral-600 font-mono font-bold uppercase">
-              DIGEST: {formatSha(reviewRecord.verification_digest)}
+            <span className="text-[10px] text-zinc-400 font-mono">
+              Digest: {formatSha(reviewRecord.verification_digest)}
             </span>
           </div>
-          <p className="text-xs font-medium text-black mb-3">{reviewRecord.summary}</p>
+          <p className="text-xs text-zinc-700 mb-3 leading-relaxed">{reviewRecord.summary}</p>
 
           {reviewRecord.findings && reviewRecord.findings.length > 0 && (
-            <div className="flex flex-col gap-2 pt-2 border-t border-black/20">
-              <span className="text-[10px] font-mono font-black uppercase tracking-wider text-neutral-500">FINDINGS AUDIT</span>
+            <div className="flex flex-col gap-2 pt-2 border-t border-zinc-100">
+              <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">Review findings</span>
               {reviewRecord.findings.map((f, i) => (
-                <div key={i} className="text-[11px] p-2.5 rounded-none bg-swiss-gray border-2 border-black font-mono">
+                <div key={i} className="text-xs p-2.5 rounded-lg bg-zinc-50 border border-zinc-200/70 font-mono">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-black">{f.file} {f.line ? `:${f.line}` : ''}</span>
-                    <span className="text-[9px] uppercase px-1.5 py-0.5 bg-[#ff3000] text-white font-black border border-black">
+                    <span className="font-semibold text-zinc-900">{f.file} {f.line ? `:${f.line}` : ''}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 bg-rose-50 text-rose-700 font-medium rounded-md border border-rose-200">
                       {f.severity}
                     </span>
                   </div>
-                  <p className="text-neutral-700 text-xs font-sans">{f.description}</p>
+                  <p className="text-zinc-600 text-xs font-sans mt-0.5">{f.description}</p>
                 </div>
               ))}
             </div>
@@ -89,36 +86,35 @@ export function DiffReviewInspector({
 
       {/* Automated Verification Checks Card */}
       {verificationResult && (
-        <Card className="p-4 border-2 border-black bg-white rounded-none">
-          <div className="flex items-center justify-between mb-2 border-b-2 border-black pb-2">
+        <Card className="p-4 border border-zinc-200/80 bg-white rounded-xl shadow-2xs">
+          <div className="flex items-center justify-between mb-2 border-b border-zinc-100 pb-2">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-black uppercase text-[#ff3000]">[CHECKS]</span>
-              <span className="text-xs font-black uppercase tracking-wider text-black">Automated Harness</span>
+              <span className="text-xs font-semibold text-zinc-900">Automated checks</span>
               <Badge variant={verificationResult.passed ? 'done' : 'blocked'}>
-                {verificationResult.passed ? 'PASSED (0)' : `FAILED (${verificationResult.exit_code})`}
+                {verificationResult.passed ? 'Passed' : `Failed (${verificationResult.exit_code})`}
               </Badge>
             </div>
-            <span className="text-[10px] font-mono font-bold text-neutral-700 uppercase">{verificationResult.command}</span>
+            <span className="text-[10px] font-mono text-zinc-500">{verificationResult.command}</span>
           </div>
-          <div className="bg-black border-2 border-black rounded-none p-3 font-mono text-[11px] text-neutral-200 max-h-[160px] overflow-y-auto whitespace-pre-wrap selection:bg-[#ff3000] selection:text-white">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3 font-mono text-xs text-zinc-200 max-h-[160px] overflow-y-auto whitespace-pre-wrap selection:bg-zinc-700">
             {verificationResult.output_log || 'No log output recorded.'}
           </div>
         </Card>
       )}
 
       {/* Unified Diff Viewer */}
-      <Card className="p-4 flex-1 flex flex-col border-2 border-black bg-white rounded-none">
-        <CardHeader className="p-0 pb-2 mb-2 border-b-2 border-black">
-          <CardTitle className="text-xs flex items-center justify-between w-full font-mono">
-            <span className="font-black uppercase tracking-wider text-black">[DIFF] UNIFIED PATCH VIEW</span>
-            <span className="text-[10px] font-bold text-[#ff3000] uppercase">CANDIDATE DELTA</span>
+      <Card className="p-4 flex-1 flex flex-col border border-zinc-200/80 bg-white rounded-xl shadow-2xs">
+        <CardHeader className="p-0 pb-2 mb-2 border-b border-zinc-100">
+          <CardTitle className="text-xs flex items-center justify-between w-full font-sans">
+            <span className="font-semibold text-zinc-900">Unified diff (candidate vs base)</span>
+            <span className="text-[10px] font-medium text-zinc-400">Candidate patch</span>
           </CardTitle>
         </CardHeader>
         <div
           role="region"
           tabIndex={0}
           aria-label="Candidate unified diff"
-          className="bg-neutral-50 border-2 border-black rounded-none p-3 font-mono text-[11px] overflow-x-auto whitespace-pre leading-relaxed flex-1 max-h-[400px]"
+          className="bg-zinc-50/70 border border-zinc-200/80 rounded-lg p-3 font-mono text-xs overflow-x-auto whitespace-pre leading-relaxed flex-1 max-h-[400px]"
         >
           {diffPatch ? (
             diffPatch.split('\n').map((line, idx) => {
@@ -131,12 +127,12 @@ export function DiffReviewInspector({
                   key={idx}
                   className={
                     isAdd
-                      ? 'bg-emerald-100 text-emerald-950 font-bold px-1'
+                      ? 'bg-emerald-50 text-emerald-800 font-medium px-1 rounded-xs'
                       : isDel
-                      ? 'bg-red-100 text-red-950 font-bold px-1'
+                      ? 'bg-rose-50 text-rose-800 font-medium px-1 rounded-xs'
                       : isHeader
-                      ? 'bg-black text-white font-black px-1 my-0.5'
-                      : 'text-neutral-900 px-1'
+                      ? 'bg-zinc-200 text-zinc-800 font-semibold px-1 my-0.5 rounded-xs'
+                      : 'text-zinc-700 px-1'
                   }
                 >
                   {line}
@@ -144,7 +140,7 @@ export function DiffReviewInspector({
               )
             })
           ) : (
-            <span className="text-neutral-400 font-bold uppercase tracking-wide">
+            <span className="text-zinc-400 text-xs font-normal">
               No candidate diff available. Run worker task to generate candidate patch.
             </span>
           )}

@@ -50,22 +50,22 @@ export function SwarmVisualizer({ project, tasks, refreshToken = 0 }: SwarmVisua
   return (
     <div className="flex flex-col h-full overflow-hidden bg-white">
       {/* Top Banner: Swarm Capacity & Concurrency */}
-      <div className="grid grid-cols-1 md:grid-cols-3 border-b-2 border-black divide-x-2 divide-black bg-white shrink-0">
+      <div className="grid grid-cols-1 md:grid-cols-3 border-b border-zinc-200 divide-x divide-zinc-200 bg-white shrink-0">
         <div className="p-4 bg-white">
-          <span className="text-[10px] font-mono font-black text-[#ff3000] uppercase tracking-wider block">
-            [01] SWARM CAPACITY
+          <span className="text-xs font-semibold text-[#ea3a12] block mb-1">
+            Swarm capacity
           </span>
           <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-3xl font-black font-mono text-black">
+            <span className="text-2xl font-bold font-mono text-zinc-900">
               {metrics ? metrics.activeCount : 0}
             </span>
-            <span className="text-xs font-mono font-bold text-neutral-500 uppercase">
-              / {metrics ? metrics.maxConcurrency : 3} SLOTS ACTIVE
+            <span className="text-xs text-zinc-500 font-medium">
+              / {metrics ? metrics.maxConcurrency : 3} slots active
             </span>
           </div>
-          <div className="w-full bg-neutral-100 h-2 rounded-none mt-2.5 overflow-hidden border border-black">
+          <div className="w-full bg-zinc-100 h-2 rounded-full mt-2.5 overflow-hidden border border-zinc-200">
             <div
-              className="bg-black h-full transition-all duration-200"
+              className="bg-zinc-900 h-full transition-all duration-200 rounded-full"
               style={{
                 width: `${metrics ? (metrics.activeCount / metrics.maxConcurrency) * 100 : 0}%`,
               }}
@@ -74,55 +74,55 @@ export function SwarmVisualizer({ project, tasks, refreshToken = 0 }: SwarmVisua
         </div>
 
         <div className="p-4 bg-white">
-          <span className="text-[10px] font-mono font-black text-black uppercase tracking-wider block">
-            [02] MERGE PIPELINE
+          <span className="text-xs font-semibold text-zinc-900 block mb-1">
+            Merge pipeline
           </span>
           <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-3xl font-black font-mono text-black">
+            <span className="text-2xl font-bold font-mono text-zinc-900">
               {mergeQueueInfo ? mergeQueueInfo.length : 0}
             </span>
-            <span className="text-xs font-mono font-bold text-neutral-500 uppercase">ENQUEUED COMMITS</span>
+            <span className="text-xs text-zinc-500 font-medium">enqueued commits</span>
           </div>
-          <p className="text-[10px] font-mono font-bold text-neutral-600 mt-2 uppercase">
-            STATUS: {mergeQueueInfo?.isProcessing ? '⚡ VERIFYING REBASE' : 'IDLE'}
+          <p className="text-xs text-zinc-500 mt-2">
+            Status: {mergeQueueInfo?.isProcessing ? '⚡ Verifying rebase' : 'Idle'}
           </p>
         </div>
 
         <div className="p-4 flex flex-col justify-between bg-white">
           <div>
-            <span className="text-[10px] font-mono font-black text-[#ff3000] uppercase tracking-wider block">
-              [03] SCOPE SCHEDULER
+            <span className="text-xs font-semibold text-[#ea3a12] block mb-1">
+              Scope scheduler
             </span>
-            <p className="text-[11px] font-medium text-neutral-600 mt-0.5">
+            <p className="text-[11px] text-zinc-500 mt-0.5">
               Dispatches non-conflicting tasks across isolated worktrees.
             </p>
           </div>
           <div className="pt-2">
             <Button variant="default" size="sm" onClick={handleScheduleSwarm} disabled={loading || !tasks.length} className="w-full">
-              {loading ? 'ANALYZING SCOPES...' : 'TRIGGER SWARM DISPATCH'}
+              {loading ? 'Analyzing scopes...' : 'Trigger swarm dispatch'}
             </Button>
           </div>
         </div>
       </div>
 
       {/* Main Grid: Active Worker Slots & Scope Lock Queues */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 flex-1 divide-x-2 divide-black overflow-hidden bg-white">
+      <div className="grid grid-cols-1 lg:grid-cols-2 flex-1 divide-x divide-zinc-200 overflow-hidden bg-white">
         {/* Active Worker Slots */}
         <div className="flex flex-col h-full overflow-hidden bg-white">
-          <div className="flex items-center justify-between border-b-2 border-black px-5 py-3.5 bg-white shrink-0">
-            <span className="font-black uppercase tracking-wider text-black font-mono text-xs">[01] ACTIVE WORKER SLOTS</span>
-            <Badge variant="progress">CONCURRENT SWARM</Badge>
+          <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3.5 bg-white shrink-0">
+            <span className="font-semibold text-zinc-900 text-xs tracking-tight">Active worker slots</span>
+            <Badge variant="progress">Concurrent swarm</Badge>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2.5 bg-neutral-50/50">
+          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2.5 bg-zinc-50/40">
             {metrics?.activeWorkers?.map((w: any) => (
-              <div key={w.taskId} className="p-3 rounded-none border-2 border-black bg-white flex items-center justify-between">
+              <div key={w.taskId} className="p-3.5 rounded-lg border border-zinc-200 bg-white flex items-center justify-between shadow-2xs">
                 <div className="flex items-center gap-3">
-                  <div className="w-2.5 h-2.5 rounded-none bg-emerald-600 border border-black animate-pulse" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse" />
                   <div>
-                    <h5 className="text-xs font-black uppercase text-black font-mono">{w.taskId}</h5>
-                    <span className="text-[10px] font-mono text-neutral-600 font-bold uppercase">
-                      PID: {w.pid || 'ALLOCATING'} · UPTIME: {Math.round(w.uptimeMs / 1000)}S
+                    <h5 className="text-xs font-semibold text-zinc-900 font-mono">{w.taskId}</h5>
+                    <span className="text-[11px] font-mono text-zinc-500">
+                      PID: {w.pid || 'allocating'} · Uptime: {Math.round(w.uptimeMs / 1000)}s
                     </span>
                   </div>
                 </div>
@@ -131,9 +131,9 @@ export function SwarmVisualizer({ project, tasks, refreshToken = 0 }: SwarmVisua
             ))}
 
             {(!metrics?.activeWorkers || metrics.activeWorkers.length === 0) && (
-              <div className="flex-1 flex items-center justify-center p-8 border-2 border-dashed border-black/20 rounded-none bg-swiss-gray text-center m-2">
-                <span className="text-xs font-mono font-bold uppercase text-neutral-400">
-                  NO WORKER AGENTS ACTIVELY EXECUTING
+              <div className="flex-1 flex items-center justify-center p-8 border border-dashed border-zinc-200 rounded-xl bg-white/40 text-center m-2">
+                <span className="text-xs text-zinc-400 font-medium">
+                  No worker agents actively executing
                 </span>
               </div>
             )}
@@ -142,32 +142,32 @@ export function SwarmVisualizer({ project, tasks, refreshToken = 0 }: SwarmVisua
 
         {/* Queued Tasks & Scope Collisions */}
         <div className="flex flex-col h-full overflow-hidden bg-white">
-          <div className="flex items-center justify-between border-b-2 border-black px-5 py-3.5 bg-white shrink-0">
-            <span className="font-black uppercase tracking-wider text-black font-mono text-xs">[02] SCOPE CONFLICT QUEUE</span>
-            <span className="text-[10px] font-mono font-bold text-[#ff3000] uppercase">
-              {scheduleResult?.queuedTasks?.length || 0} ENQUEUED
+          <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3.5 bg-white shrink-0">
+            <span className="font-semibold text-zinc-900 text-xs tracking-tight">Scope conflict queue</span>
+            <span className="text-xs text-zinc-500">
+              {scheduleResult?.queuedTasks?.length || 0} enqueued
             </span>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2.5 bg-white">
             {scheduleResult?.queuedTasks?.map((q: any) => (
-              <div key={q.task.id} className="p-3 rounded-none border-2 border-black bg-amber-50 border-l-4 border-l-amber-600 text-xs flex flex-col gap-1">
+              <div key={q.task.id} className="p-3.5 rounded-lg border border-amber-200 bg-amber-50/60 text-xs flex flex-col gap-1 shadow-2xs">
                 <div className="flex items-center justify-between">
-                  <span className="font-black uppercase tracking-tight text-black">{q.task.title}</span>
+                  <span className="font-semibold text-zinc-900">{q.task.title}</span>
                   <Badge variant="blocked">{q.reason}</Badge>
                 </div>
                 {q.collidingPaths.length > 0 && (
-                  <p className="text-[10px] font-mono text-amber-900 font-bold uppercase">
-                    COLLIDING FILES: {q.collidingPaths.join(', ')}
+                  <p className="text-[11px] font-mono text-amber-800">
+                    Colliding files: {q.collidingPaths.join(', ')}
                   </p>
                 )}
               </div>
             ))}
 
             {(!scheduleResult?.queuedTasks || scheduleResult.queuedTasks.length === 0) && (
-              <div className="flex-1 flex items-center justify-center p-8 border-2 border-dashed border-black/20 rounded-none bg-swiss-gray text-center m-2">
-                <span className="text-xs font-mono font-bold uppercase text-neutral-400">
-                  NO TASKS BLOCKED BY WORKSPACE CONFLICTS
+              <div className="flex-1 flex items-center justify-center p-8 border border-dashed border-zinc-200 rounded-xl bg-zinc-50/50 text-center m-2">
+                <span className="text-xs text-zinc-400 font-medium">
+                  No tasks blocked by workspace conflicts
                 </span>
               </div>
             )}

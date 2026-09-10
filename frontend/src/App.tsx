@@ -204,58 +204,61 @@ export function App() {
   const tabMeta = TAB_TITLES[currentTab]
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-white text-black font-sans selection:bg-[#ff3000] selection:text-white">
-      <aside aria-label="Workspace navigation" className="relative hidden w-[250px] shrink-0 flex-col overflow-hidden border-r-2 border-black bg-white text-black lg:flex">
+    <div className="flex h-screen w-screen overflow-hidden bg-white text-zinc-900 font-sans selection:bg-[#ea3a12] selection:text-white">
+      <aside aria-label="Workspace navigation" className="relative hidden w-[250px] shrink-0 flex-col overflow-hidden border-r border-zinc-200 bg-white text-zinc-900 lg:flex">
         {/* Brand Header */}
-        <div className="relative flex h-16 items-center gap-3 border-b-2 border-black px-4 bg-white shrink-0">
-          <div className="grid h-8 w-8 place-items-center rounded-none bg-black text-sm font-black text-white select-none">
+        <div className="relative flex h-14 items-center gap-3 border-b border-zinc-100 px-4 bg-white shrink-0">
+          <div className="grid h-7 w-7 place-items-center rounded-lg bg-zinc-900 text-xs font-bold text-white select-none shadow-xs">
             Z
           </div>
           <div>
-            <div className="text-sm font-black tracking-wider uppercase text-black leading-none">CLAUDE·ZEN</div>
-            <div className="text-[9px] font-bold tracking-widest text-neutral-500 uppercase font-mono mt-0.5">DELIVERY SYSTEM</div>
+            <div className="text-xs font-bold tracking-tight text-zinc-900 leading-none">Claude·Zen</div>
+            <div className="text-[10px] font-medium text-zinc-500 mt-0.5">Delivery workspace</div>
           </div>
         </div>
 
         {/* Active Workspace Box */}
-        <div className="border-b-2 border-black bg-swiss-gray p-3.5 shrink-0">
-          <div className="mb-1 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-[#ff3000] font-mono">
-            <FolderGit2 size={12} strokeWidth={2.5} /> [00] WORKSPACE
+        <div className="m-3 rounded-lg border border-zinc-200/80 bg-zinc-50/60 p-3 shrink-0">
+          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold text-[#ea3a12]">
+            <FolderGit2 size={12} strokeWidth={2} /> Active repository
           </div>
-          <div className="truncate text-xs font-black uppercase tracking-tight text-black" title={activeProject?.name || ''}>
-            {activeProject?.name || 'NO REPO SELECTED'}
+          <div className="truncate text-xs font-semibold text-zinc-900" title={activeProject?.name || ''}>
+            {activeProject?.name || 'No repository selected'}
           </div>
-          <div className="mt-1.5 flex items-center justify-between text-[9px] font-mono text-neutral-700">
-            <span className="truncate max-w-[120px]" title={activeProject?.repo_path || ''}>
-              {activeProject?.repo_path?.split('/').pop() || 'NO REPO'}
+          <div className="mt-1 flex items-center justify-between text-[10px] text-zinc-500">
+            <span className="truncate max-w-[120px] font-mono" title={activeProject?.repo_path || ''}>
+              {activeProject?.repo_path?.split('/').pop() || 'No repo'}
             </span>
-            <span className="font-bold text-black border-l border-black/30 pl-2">
+            <span className="font-mono text-zinc-700 border-l border-zinc-200 pl-2">
               {activeProject?.active_branch || '—'}
             </span>
           </div>
         </div>
 
-        {/* Nav Links: Primary Sidebar Navigation */}
-        <nav aria-label="Primary navigation" className="relative flex-1 flex flex-col overflow-y-auto divide-y divide-black/15 bg-white">
+        {/* Nav Links: Spacious, Comfortable Sidebar Navigation */}
+        <nav aria-label="Primary navigation" className="relative flex-1 flex flex-col overflow-y-auto px-3 py-1 gap-1 bg-white">
+          <div className="px-2 py-1 text-[10px] font-semibold text-zinc-400">
+            Navigation
+          </div>
           {NAV_ITEMS.map(({ id, num, label, icon: Icon }) => {
             const isActive = currentTab === id
             return (
               <button
                 key={id}
                 onClick={() => setCurrentTab(id)}
-                className={`group flex w-full items-center gap-3 px-4 py-3 text-left text-xs font-black uppercase tracking-wider transition-colors duration-150 select-none ${
+                className={`group flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-left text-xs transition-colors duration-150 select-none ${
                   isActive
-                    ? 'bg-black text-white'
-                    : 'bg-white text-black hover:bg-neutral-100'
+                    ? 'bg-zinc-900 text-white font-semibold shadow-xs'
+                    : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 font-medium'
                 }`}
               >
-                <span className={`font-mono text-xs ${isActive ? 'text-[#ff3000]' : 'text-neutral-400 font-bold'}`}>
+                <span className={`font-mono text-[11px] ${isActive ? 'text-[#ea3a12]' : 'text-zinc-400 font-normal'}`}>
                   {num}
                 </span>
-                <Icon size={16} strokeWidth={isActive ? 2.5 : 2} className="shrink-0" />
+                <Icon size={16} strokeWidth={isActive ? 2.2 : 1.8} className="shrink-0" />
                 <span className="truncate flex-1">{label}</span>
                 {id === 'board' && attentionTasks > 0 && (
-                  <span className="ml-auto grid h-4 min-w-4 place-items-center rounded-none bg-[#ff3000] px-1 text-[8px] font-black text-white font-mono border border-black">
+                  <span className="ml-auto grid h-4 min-w-4 place-items-center rounded-full bg-[#ea3a12] px-1 text-[9px] font-bold text-white font-mono">
                     {attentionTasks}
                   </span>
                 )}
@@ -265,15 +268,15 @@ export function App() {
         </nav>
 
         {/* Compact System Boundary & Status Footer */}
-        <div className="border-t-2 border-black bg-swiss-gray px-4 py-3 shrink-0">
-          <div className="flex items-center justify-between text-[10px] font-mono">
-            <span className="flex items-center gap-1.5 font-bold uppercase text-black">
-              <Activity size={12} strokeWidth={2.5} className="text-[#ff3000]" />
-              CONTAINER
+        <div className="border-t border-zinc-200 bg-zinc-50 px-4 py-2.5 shrink-0">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="flex items-center gap-1.5 font-medium text-zinc-700">
+              <Activity size={12} strokeWidth={2} className="text-[#ea3a12]" />
+              Container isolated
             </span>
-            <span className={`flex items-center gap-1.5 font-black uppercase ${connectionState === 'live' ? 'text-emerald-700' : 'text-amber-700'}`}>
-              <span className={`h-2 w-2 rounded-none border border-black ${connectionState === 'live' ? 'bg-emerald-600' : 'bg-amber-500 animate-pulse'}`} />
-              {connectionState === 'live' ? 'LIVE' : 'SYNCING'}
+            <span className={`flex items-center gap-1.5 font-medium ${connectionState === 'live' ? 'text-emerald-700' : 'text-amber-700'}`}>
+              <span className={`h-2 w-2 rounded-full ${connectionState === 'live' ? 'bg-emerald-600' : 'bg-amber-500 animate-pulse'}`} />
+              {connectionState === 'live' ? 'Live' : 'Connecting'}
             </span>
           </div>
         </div>
@@ -282,17 +285,17 @@ export function App() {
       {/* Main Content Area */}
       <main className="min-w-0 flex-1 flex flex-col overflow-hidden bg-white">
         {/* Top Control Bar */}
-        <header className="flex min-h-14 items-center justify-between border-b-2 border-black bg-white px-5 shrink-0">
+        <header className="flex min-h-14 items-center justify-between border-b border-zinc-200 bg-white px-5 shrink-0">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-none bg-black text-xs font-black text-white lg:hidden">
+            <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-zinc-900 text-xs font-bold text-white lg:hidden">
               Z
             </div>
             <div className="min-w-0">
-              <div className="text-[9px] font-black uppercase tracking-widest text-[#ff3000] font-mono">
-                [{tabMeta.num}] {tabMeta.eyebrow}
+              <div className="text-[10px] font-semibold text-[#ea3a12]">
+                {tabMeta.eyebrow}
               </div>
-              <div className="truncate text-sm font-black uppercase tracking-tight text-black">
-                {activeProject?.name || 'CLAUDE-ZEN WORKSPACE'}
+              <div className="truncate text-sm font-semibold text-zinc-900">
+                {activeProject?.name || 'Claude-Zen workspace'}
               </div>
             </div>
           </div>
@@ -302,74 +305,74 @@ export function App() {
                 aria-label="Autonomy mode"
                 value={activeProject.autonomy_mode || 'GUIDED'}
                 onChange={(event) => handleAutonomyChange(event.target.value as Project['autonomy_mode'])}
-                className="rounded-none border-2 border-black bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-black outline-none transition-colors focus:border-[#ff3000] focus:bg-neutral-100 cursor-pointer"
+                className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 outline-none transition-colors focus:border-zinc-400 cursor-pointer shadow-2xs"
               >
-                <option value="GUIDED">MODE: GUIDED CONTROL</option>
-                <option value="SUPERVISED">MODE: SUPERVISED FLOW</option>
-                <option value="AUTONOMOUS">MODE: FULL AUTONOMOUS</option>
+                <option value="GUIDED">Guided control</option>
+                <option value="SUPERVISED">Supervised flow</option>
+                <option value="AUTONOMOUS">Autonomous flow</option>
               </select>
             )}
             <button
               aria-label="Refresh workspace"
               onClick={loadProjects}
-              className="grid h-8 w-8 place-items-center rounded-none border-2 border-black bg-white text-black transition-colors hover:bg-black hover:text-white active:translate-y-[1px]"
+              className="grid h-8 w-8 place-items-center rounded-lg border border-zinc-200 bg-white text-zinc-700 transition-colors hover:bg-zinc-50 active:scale-95 shadow-2xs"
             >
-              <RefreshCw size={13} strokeWidth={2.5} className={loading ? 'animate-spin' : ''} />
+              <RefreshCw size={13} strokeWidth={2} className={loading ? 'animate-spin' : ''} />
             </button>
             <Button
               aria-label="Add repository"
               size="sm"
               onClick={() => setCurrentTab('projects')}
             >
-              <Plus size={13} strokeWidth={3} />
-              <span className="hidden sm:inline">ADD REPO</span>
+              <Plus size={13} strokeWidth={2.5} />
+              <span className="hidden sm:inline">Add repo</span>
             </Button>
           </div>
         </header>
 
         {/* Mobile Navigation Strip */}
-        <nav aria-label="Mobile navigation" className="flex gap-1 overflow-x-auto border-b-2 border-black bg-swiss-gray p-2 lg:hidden shrink-0">
+        <nav aria-label="Mobile navigation" className="flex gap-1 overflow-x-auto border-b border-zinc-200 bg-zinc-50 p-2 lg:hidden shrink-0">
           {NAV_ITEMS.map(({ id, num, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setCurrentTab(id)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-none border-2 border-black px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                currentTab === id ? 'bg-black text-white' : 'bg-white text-black hover:bg-neutral-100'
+              className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium ${
+                currentTab === id ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-100'
               }`}
             >
-              <span className="font-mono text-[#ff3000]">{num}</span>
-              <Icon size={12} />
+              <span className="font-mono text-[#ea3a12]">{num}</span>
+              <Icon size={13} />
               {label}
             </button>
           ))}
         </nav>
 
         {/* Section Title & KPI Matrix */}
-        <section className="flex items-center justify-between gap-6 border-b-2 border-black bg-white px-5 py-3 shrink-0">
+        <section className="flex items-center justify-between gap-6 border-b border-zinc-200 bg-white px-5 py-3.5 shrink-0">
           <div className="min-w-0">
-            <p className="text-[9px] font-black uppercase tracking-ultra text-[#ff3000] font-mono leading-none mb-0.5">
-              SECTION {tabMeta.num} · {tabMeta.eyebrow}
+            <p className="text-[11px] font-medium text-[#ea3a12] leading-none mb-1">
+              Section {tabMeta.num} · {tabMeta.eyebrow}
             </p>
-            <h1 className="text-lg sm:text-xl font-black uppercase tracking-tight text-black leading-tight">
+            <h1 className="text-xl font-bold tracking-tight text-zinc-900 leading-tight">
               {tabMeta.title}
             </h1>
-            <p className="text-[11px] font-medium text-neutral-600 truncate max-w-2xl">
+            <p className="text-xs text-zinc-500 truncate max-w-2xl mt-0.5">
               {tabMeta.description}
             </p>
           </div>
           {currentTab === 'board' && (
-            <div className="hidden shrink-0 grid-cols-3 divide-x-2 divide-black border-2 border-black bg-white md:grid">
-              <div className="px-3.5 py-1.5 bg-white">
-                <div className="text-[8px] font-black uppercase tracking-widest text-neutral-500 font-mono">TASKS</div>
-                <div className="text-base font-black font-mono leading-tight">{tasks.length}</div>
+            <div className="hidden shrink-0 grid-cols-3 divide-x divide-zinc-200 rounded-lg border border-zinc-200 bg-white shadow-2xs md:grid overflow-hidden">
+              <div className="px-4 py-1.5 bg-white">
+                <div className="text-[10px] font-medium text-zinc-500">Tasks</div>
+                <div className="text-base font-bold font-mono leading-tight text-zinc-900">{tasks.length}</div>
               </div>
-              <div className="px-3.5 py-1.5 bg-white">
-                <div className="text-[8px] font-black uppercase tracking-widest text-neutral-500 font-mono">DONE</div>
-                <div className="text-base font-black font-mono text-emerald-700 leading-tight">{completedTasks}</div>
+              <div className="px-4 py-1.5 bg-white">
+                <div className="text-[10px] font-medium text-zinc-500">Done</div>
+                <div className="text-base font-bold font-mono text-emerald-600 leading-tight">{completedTasks}</div>
               </div>
-              <div className="px-3.5 py-1.5 bg-white">
-                <div className="text-[8px] font-black uppercase tracking-widest text-neutral-500 font-mono">ATTN</div>
-                <div className={`text-base font-black font-mono leading-tight ${attentionTasks > 0 ? 'text-[#ff3000]' : 'text-neutral-400'}`}>
+              <div className="px-4 py-1.5 bg-white">
+                <div className="text-[10px] font-medium text-zinc-500">Attention</div>
+                <div className={`text-base font-bold font-mono leading-tight ${attentionTasks > 0 ? 'text-[#ea3a12]' : 'text-zinc-400'}`}>
                   {attentionTasks}
                 </div>
               </div>
@@ -378,16 +381,16 @@ export function App() {
         </section>
 
         {error && (
-          <div role="alert" className="border-b-2 border-black bg-[#ff3000] px-5 py-2 text-xs font-black uppercase tracking-wider text-white flex items-center justify-between shrink-0">
+          <div role="alert" className="border-b border-rose-200 bg-rose-50 px-5 py-2.5 text-xs font-medium text-rose-700 flex items-center justify-between shrink-0">
             <span>{error}</span>
-            <button className="underline hover:text-black font-black" onClick={() => setError(null)}>
-              DISMISS
+            <button className="underline hover:text-rose-900 font-semibold" onClick={() => setError(null)}>
+              Dismiss
             </button>
           </div>
         )}
 
         {(['board', 'diff', 'preview'] as TabType[]).includes(currentTab) && (
-          <div className="border-b-2 border-black bg-white px-5 py-2.5 shrink-0">
+          <div className="border-b border-zinc-200 bg-white px-5 py-2.5 shrink-0">
             <PipelineVisualizer currentStage={currentPipelineStage} />
           </div>
         )}
@@ -395,8 +398,8 @@ export function App() {
         {/* Dynamic Tab Body: Edge to Edge Grid Container */}
         <div className="flex-1 overflow-hidden flex flex-col bg-white">
           {currentTab === 'board' && (
-            <div className={`${activeTask ? 'grid-cols-1 xl:grid-cols-3 divide-x-2 divide-black' : 'grid-cols-1'} grid min-w-0 h-full overflow-hidden`}>
-              <div className={`${activeTask ? 'xl:col-span-2' : ''} min-w-0 h-full flex flex-col overflow-hidden p-3`}>
+            <div className={`${activeTask ? 'grid-cols-1 xl:grid-cols-3 divide-x divide-zinc-200' : 'grid-cols-1'} grid min-w-0 h-full overflow-hidden`}>
+              <div className={`${activeTask ? 'xl:col-span-2' : ''} min-w-0 h-full flex flex-col overflow-hidden p-4`}>
                 <KanbanBoard
                   tasks={tasks}
                   activeTaskId={activeTask?.id || null}
@@ -404,7 +407,7 @@ export function App() {
                 />
               </div>
               {activeTask && (
-                <div className="hidden xl:flex flex-col h-full overflow-hidden p-3 bg-neutral-50">
+                <div className="hidden xl:flex flex-col h-full overflow-hidden p-4 bg-zinc-50/50">
                   <DiffReviewInspector
                     task={activeTask}
                     candidateCommitSha={candidateSha}

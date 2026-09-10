@@ -83,37 +83,37 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 h-full divide-x-2 divide-black overflow-hidden bg-white">
+    <div className="grid grid-cols-1 lg:grid-cols-2 h-full divide-x divide-zinc-200 overflow-hidden bg-white">
       {/* Left: Baseline Selector & Changelog */}
       <div className="flex flex-col h-full overflow-hidden bg-white">
-        <div className="flex items-center justify-between border-b-2 border-black px-5 py-3.5 bg-white shrink-0">
-          <span className="font-black uppercase tracking-wider text-black font-mono text-xs">[01] REQUIREMENTS DELTA MATRIX</span>
-          <span className="text-[10px] font-mono font-bold text-[#ff3000] uppercase">DIFF ENGINE</span>
+        <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3.5 bg-white shrink-0">
+          <span className="font-semibold text-zinc-900 text-xs tracking-tight">Requirements delta matrix</span>
+          <span className="text-[11px] font-mono text-zinc-500">Diff engine</span>
         </div>
 
-        <div className="flex items-center gap-2 p-3.5 border-b-2 border-black bg-neutral-50 flex-wrap shrink-0">
+        <div className="flex items-center gap-2.5 p-3.5 border-b border-zinc-200 bg-zinc-50/60 flex-wrap shrink-0">
           <select
-            className="flex-1 min-w-[130px] px-3 py-1.5 rounded-none border-2 border-black bg-white font-mono text-xs text-black font-bold focus:border-[#ff3000] outline-none cursor-pointer"
+            className="flex-1 min-w-[130px] px-3 py-1.5 rounded-lg border border-zinc-200 bg-white text-xs text-zinc-800 font-medium focus:border-zinc-400 outline-none cursor-pointer shadow-2xs"
             value={baseId1}
             onChange={(e) => setBaseId1(e.target.value)}
           >
-            <option value="">PREVIOUS BASELINE</option>
+            <option value="">Previous baseline</option>
             {baselines.map((base) => (
               <option key={base.id} value={base.id}>
-                {base.version} · {base.status.toUpperCase()}
+                {base.version} · {base.status}
               </option>
             ))}
           </select>
-          <span className="text-xs font-black text-black font-mono">→</span>
+          <span className="text-xs text-zinc-400 font-medium">→</span>
           <select
-            className="flex-1 min-w-[130px] px-3 py-1.5 rounded-none border-2 border-black bg-white font-mono text-xs text-black font-bold focus:border-[#ff3000] outline-none cursor-pointer"
+            className="flex-1 min-w-[130px] px-3 py-1.5 rounded-lg border border-zinc-200 bg-white text-xs text-zinc-800 font-medium focus:border-zinc-400 outline-none cursor-pointer shadow-2xs"
             value={baseId2}
             onChange={(e) => setBaseId2(e.target.value)}
           >
-            <option value="">NEW BASELINE</option>
+            <option value="">New baseline</option>
             {baselines.map((base) => (
               <option key={base.id} value={base.id}>
-                {base.version} · {base.status.toUpperCase()}
+                {base.version} · {base.status}
               </option>
             ))}
           </select>
@@ -123,23 +123,23 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
             onClick={handleRunDiff}
             disabled={loading || !baseId1 || !baseId2}
           >
-            DIFF BASELINES
+            Diff baselines
           </Button>
         </div>
 
         {/* Formatted Changelog Output */}
-        <div className="flex-1 overflow-y-auto bg-swiss-gray p-4 font-mono text-xs text-black whitespace-pre-wrap leading-relaxed">
+        <div className="flex-1 overflow-y-auto bg-zinc-50/40 p-4 font-mono text-xs text-zinc-800 whitespace-pre-wrap leading-relaxed">
           {changelog || 'Select two baseline versions above to audit requirement changes.'}
         </div>
       </div>
 
       {/* Right: Automated Scope Impact Analysis */}
       <div className="flex flex-col h-full overflow-hidden bg-white">
-        <div className="flex items-center justify-between border-b-2 border-black px-5 py-3.5 bg-white shrink-0">
-          <span className="font-black uppercase tracking-wider text-black font-mono text-xs">[02] SCOPE IMPACT AUDIT</span>
+        <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3.5 bg-white shrink-0">
+          <span className="font-semibold text-zinc-900 text-xs tracking-tight">Scope impact audit</span>
           {impactReport && (
             <Badge variant={impactReport.hasImpact ? 'blocked' : 'done'}>
-              {impactReport.hasImpact ? 'IMPACT DETECTED' : 'NO IMPACT'}
+              {impactReport.hasImpact ? 'Impact detected' : 'No impact'}
             </Badge>
           )}
         </div>
@@ -149,23 +149,23 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
             <>
               {/* Affected Tasks */}
               <div>
-                <h4 className="text-xs font-black uppercase tracking-wider text-[#ff3000] font-mono mb-2">
-                  AFFECTED TASKS REQUIRING REWORK ({impactReport.affectedTasks.length})
+                <h4 className="text-xs font-semibold text-[#ea3a12] mb-2">
+                  Affected tasks requiring rework ({impactReport.affectedTasks.length})
                 </h4>
                 {impactReport.affectedTasks.map((t: any) => (
                   <div
                     key={t.taskId}
-                    className="p-3 rounded-none bg-red-50 border-2 border-black text-xs mb-2 flex justify-between items-start"
+                    className="p-3 rounded-lg bg-rose-50/60 border border-rose-200 text-xs mb-2 flex justify-between items-start shadow-2xs"
                   >
                     <div>
-                      <span className="font-black uppercase tracking-tight text-black">{t.title}</span>
-                      <p className="text-[11px] font-mono text-[#ff3000] mt-0.5">{t.reason}</p>
+                      <span className="font-semibold text-zinc-900">{t.title}</span>
+                      <p className="text-[11px] font-mono text-rose-700 mt-0.5">{t.reason}</p>
                     </div>
                     <Badge variant="blocked">{t.status}</Badge>
                   </div>
                 ))}
                 {impactReport.affectedTasks.length === 0 && (
-                  <p className="text-xs font-medium text-neutral-600">
+                  <p className="text-xs text-zinc-500 font-normal">
                     No active tasks affected by these specification changes.
                   </p>
                 )}
@@ -174,16 +174,16 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
               {/* Uncovered Requirements */}
               {impactReport.uncoveredNewRequirements.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-black uppercase tracking-wider text-black font-mono mb-2">
-                    UNCOVERED NEW REQUIREMENTS ({impactReport.uncoveredNewRequirements.length})
+                  <h4 className="text-xs font-semibold text-zinc-800 mb-2">
+                    Uncovered new requirements ({impactReport.uncoveredNewRequirements.length})
                   </h4>
                   {impactReport.uncoveredNewRequirements.map((r: any) => (
                     <div
                       key={r.id}
-                      className="p-3 rounded-none bg-swiss-gray border-2 border-black text-xs mb-2"
+                      className="p-3 rounded-lg bg-zinc-50 border border-zinc-200 text-xs mb-2 shadow-2xs"
                     >
-                      <span className="font-mono font-black text-[#ff3000]">{r.id}: </span>
-                      <span className="font-bold text-black">{r.title}</span>
+                      <span className="font-mono font-semibold text-[#ea3a12]">{r.id}: </span>
+                      <span className="font-medium text-zinc-900">{r.title}</span>
                     </div>
                   ))}
                 </div>
@@ -191,17 +191,17 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
 
               {/* Apply Action Button */}
               {impactReport.affectedTasks.length > 0 && (
-                <div className="pt-3 mt-auto border-t-2 border-black flex justify-end">
+                <div className="pt-3 mt-auto border-t border-zinc-100 flex justify-end">
                   <Button variant="danger" size="sm" onClick={handleApplyImpact} disabled={loading}>
-                    FLAG AFFECTED TASKS FOR REWORK
+                    Flag affected tasks for rework
                   </Button>
                 </div>
               )}
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-center p-8 bg-swiss-gray border-2 border-dashed border-black/20 rounded-none m-2">
-              <p className="text-xs font-mono font-bold uppercase text-neutral-400">
-                RUN BASELINE DIFF TO CALCULATE SCOPE IMPACT
+            <div className="flex-1 flex items-center justify-center text-center p-8 bg-zinc-50 border border-dashed border-zinc-200 rounded-xl m-2">
+              <p className="text-xs text-zinc-400 font-medium">
+                Run baseline diff to calculate scope impact
               </p>
             </div>
           )}

@@ -9,21 +9,21 @@ interface KanbanBoardProps {
 }
 
 const COLUMNS: { id: TaskStatus; num: string; label: string }[] = [
-  { id: 'Backlog', num: '01', label: 'BACKLOG' },
-  { id: 'Ready', num: '02', label: 'READY' },
-  { id: 'In Progress', num: '03', label: 'WORKER' },
-  { id: 'Automated Checks', num: '04', label: 'CHECKS' },
-  { id: 'Code Review', num: '05', label: 'REVIEW' },
-  { id: 'QA', num: '06', label: 'QA ACCEPT' },
-  { id: 'Done', num: '07', label: 'DONE' },
-  { id: 'Blocked', num: '!!', label: 'BLOCKED' },
-  { id: 'Cancelled', num: 'XX', label: 'CANCELLED' },
+  { id: 'Backlog', num: '01', label: 'Backlog' },
+  { id: 'Ready', num: '02', label: 'Ready' },
+  { id: 'In Progress', num: '03', label: 'Worker' },
+  { id: 'Automated Checks', num: '04', label: 'Checks' },
+  { id: 'Code Review', num: '05', label: 'Review' },
+  { id: 'QA', num: '06', label: 'QA accept' },
+  { id: 'Done', num: '07', label: 'Done' },
+  { id: 'Blocked', num: '!!', label: 'Blocked' },
+  { id: 'Cancelled', num: 'XX', label: 'Cancelled' },
 ]
 
 export function KanbanBoard({ tasks, activeTaskId, onSelectTask }: KanbanBoardProps) {
   return (
     <div className="flex-1 overflow-y-auto sm:overflow-x-auto sm:overflow-y-hidden h-full">
-      <div className="flex min-w-0 flex-col gap-2.5 sm:h-full sm:min-w-[1180px] sm:flex-row pb-1">
+      <div className="flex min-w-0 flex-col gap-3 sm:h-full sm:min-w-[1180px] sm:flex-row pb-1">
         {COLUMNS.map((col) => {
           const colTasks = tasks.filter((t) => t.status === col.id)
           const hideEmptyExceptional = colTasks.length === 0 && (col.id === 'Blocked' || col.id === 'Cancelled')
@@ -31,17 +31,17 @@ export function KanbanBoard({ tasks, activeTaskId, onSelectTask }: KanbanBoardPr
           return (
             <div
               key={col.id}
-              className={`${hideEmptyExceptional ? 'hidden' : colTasks.length === 0 ? 'hidden sm:flex' : 'flex'} min-h-[180px] flex-1 flex-col rounded-none border-2 border-black bg-swiss-gray p-2.5 sm:h-full sm:min-w-[155px]`}
+              className={`${hideEmptyExceptional ? 'hidden' : colTasks.length === 0 ? 'hidden sm:flex' : 'flex'} min-h-[180px] flex-1 flex-col rounded-xl border border-zinc-200/80 bg-zinc-50/50 p-3 sm:h-full sm:min-w-[155px]`}
             >
               {/* Column Header */}
-              <div className="mb-2 flex items-center justify-between border-b-2 border-black px-1 pb-2 pt-1">
+              <div className="mb-2.5 flex items-center justify-between px-1 pb-2 border-b border-zinc-200/70">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-mono text-[9px] font-black text-swiss-red">{col.num}</span>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-black font-mono">
+                  <span className="font-mono text-[11px] font-medium text-[#ea3a12]">{col.num}</span>
+                  <span className="text-xs font-semibold text-zinc-900">
                     {col.label}
                   </span>
                 </div>
-                <span className="grid h-5 min-w-5 place-items-center rounded-none border border-black bg-black px-1.5 text-[10px] font-black font-mono text-white">
+                <span className="grid h-5 min-w-5 place-items-center rounded-full bg-zinc-200 px-1.5 text-[10px] font-semibold text-zinc-700">
                   {colTasks.length}
                 </span>
               </div>
@@ -65,24 +65,24 @@ export function KanbanBoard({ tasks, activeTaskId, onSelectTask }: KanbanBoardPr
                         exit={{ opacity: 0, scale: 0.96 }}
                         transition={{ duration: 0.15 }}
                         onClick={() => onSelectTask(task)}
-                        className={`w-full rounded-none border-2 p-3 text-left cursor-pointer transition-colors duration-150 active:translate-y-[1px] select-none ${
+                        className={`w-full rounded-lg border p-3.5 text-left cursor-pointer transition-all duration-150 select-none shadow-2xs ${
                           isSelected
-                            ? 'border-black bg-black text-white shadow-none ring-2 ring-swiss-red ring-offset-1'
+                            ? 'border-zinc-900 bg-zinc-900 text-white shadow-xs ring-2 ring-[#ea3a12]'
                             : reviewerUnavailable
-                            ? 'border-black bg-amber-50 text-black border-l-4 border-l-amber-600 hover:bg-amber-100'
+                            ? 'border-amber-200 bg-amber-50/60 text-zinc-900 hover:bg-amber-50'
                             : isBlocked
-                            ? 'border-black bg-red-50 text-black border-l-4 border-l-swiss-red hover:bg-red-100'
-                            : 'border-black bg-white text-black hover:bg-neutral-100'
+                            ? 'border-rose-200 bg-rose-50/60 text-zinc-900 hover:bg-rose-50'
+                            : 'border-zinc-200 bg-white text-zinc-900 hover:border-zinc-300 hover:shadow-xs'
                         }`}
                       >
                         <div className="flex items-start justify-between gap-1 mb-1">
-                          <span className={`line-clamp-2 text-xs font-black uppercase tracking-tight ${isSelected ? 'text-white' : 'text-black'}`}>
+                          <span className={`line-clamp-2 text-xs font-semibold leading-snug ${isSelected ? 'text-white' : 'text-zinc-900'}`}>
                             {task.title}
                           </span>
                         </div>
 
                         {task.description && (
-                          <p className={`text-[11px] line-clamp-2 mb-2 font-medium ${isSelected ? 'text-neutral-300' : 'text-neutral-600'}`}>
+                          <p className={`text-[11px] line-clamp-2 mb-2 font-normal ${isSelected ? 'text-zinc-300' : 'text-zinc-500'}`}>
                             {task.description}
                           </p>
                         )}
@@ -90,36 +90,36 @@ export function KanbanBoard({ tasks, activeTaskId, onSelectTask }: KanbanBoardPr
                         {/* Waiting or Blocked Tags */}
                         {task.waiting_reason && (
                           <div className="mb-2">
-                            <span className={`inline-block text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded-none border ${
+                            <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-md border ${
                               isSelected
-                                ? 'bg-purple-950 text-purple-200 border-purple-400'
-                                : 'bg-purple-100 text-purple-900 border-purple-700'
+                                ? 'bg-purple-900/60 text-purple-200 border-purple-700'
+                                : 'bg-purple-50 text-purple-700 border-purple-200'
                             }`}>
-                              {reviewerUnavailable ? '⚠ REVIEWER UNAVAILABLE' : `⏳ ${task.waiting_reason.replace(/_/g, ' ')}`}
+                              {reviewerUnavailable ? 'Reviewer unavailable' : task.waiting_reason.replace(/_/g, ' ').toLowerCase()}
                             </span>
                           </div>
                         )}
 
                         {task.blocked_reason && (
                           <div className="mb-2">
-                            <span className={`inline-block text-[9px] font-mono font-black uppercase px-1.5 py-0.5 rounded-none border ${
+                            <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-md border ${
                               isSelected
-                                ? 'bg-swiss-red text-white border-white'
-                                : 'bg-swiss-red text-white border-black'
+                                ? 'bg-rose-900/60 text-rose-200 border-rose-700'
+                                : 'bg-rose-50 text-rose-700 border-rose-200'
                             }`}>
-                              ⚠️ {task.blocked_reason.replace(/_/g, ' ')}
+                              Blocked: {task.blocked_reason.replace(/_/g, ' ').toLowerCase()}
                             </span>
                           </div>
                         )}
 
                         {/* Scope Paths Badge */}
-                        <div className={`mt-1 flex items-center justify-between border-t pt-2 text-[9px] font-bold uppercase tracking-wider font-mono ${
-                          isSelected ? 'border-white/20 text-neutral-300' : 'border-black/15 text-neutral-600'
+                        <div className={`mt-1 flex items-center justify-between border-t pt-2 text-[10px] ${
+                          isSelected ? 'border-zinc-700 text-zinc-400' : 'border-zinc-100 text-zinc-500'
                         }`}>
-                          <span>{task.scope_paths.length} FILES</span>
+                          <span>{task.scope_paths.length} {task.scope_paths.length === 1 ? 'file' : 'files'}</span>
                           {task.repair_attempts > 0 && (
-                            <span className={isSelected ? 'text-amber-300' : 'text-amber-700'}>
-                              REPAIRS: {task.repair_attempts}/{task.max_repairs}
+                            <span className={isSelected ? 'text-amber-300' : 'text-amber-600'}>
+                              Repairs: {task.repair_attempts}/{task.max_repairs}
                             </span>
                           )}
                         </div>
@@ -129,9 +129,9 @@ export function KanbanBoard({ tasks, activeTaskId, onSelectTask }: KanbanBoardPr
                 </AnimatePresence>
 
                 {colTasks.length === 0 && (
-                  <div className="flex flex-1 items-center justify-center rounded-none border-2 border-dashed border-black/20 bg-white/40 p-4 text-center">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-neutral-400 font-mono">
-                      EMPTY
+                  <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-zinc-200/80 bg-white/40 p-4 text-center">
+                    <span className="text-xs text-zinc-400">
+                      No tasks
                     </span>
                   </div>
                 )}

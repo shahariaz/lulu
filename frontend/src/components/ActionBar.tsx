@@ -59,27 +59,27 @@ export function ActionBar({
   }
 
   return (
-    <div className="z-20 flex min-h-14 items-center justify-between gap-3 border-t-2 border-black bg-white px-4 sm:px-7 rounded-none">
+    <div className="z-20 flex min-h-14 items-center justify-between gap-3 border-t border-zinc-200 bg-white px-5">
       {/* Left: Active Task Context */}
       <div className="flex items-center gap-3 min-w-0">
-        <span className="text-[10px] font-mono font-black uppercase tracking-wider text-swiss-red shrink-0">
-          [GOVERNANCE]
+        <span className="text-xs font-semibold text-[#ea3a12] shrink-0">
+          Governance
         </span>
         {task ? (
           <>
-            <span className="hidden text-xs font-black uppercase tracking-tight text-black truncate max-w-[280px] sm:inline font-sans">
+            <span className="hidden text-xs font-medium text-zinc-900 truncate max-w-[280px] sm:inline">
               {task.title}
             </span>
             <Badge variant={task.status.toLowerCase() as any}>{task.status}</Badge>
             {task.waiting_reason && (
-              <span className="text-[10px] font-mono font-bold uppercase text-purple-900 bg-purple-100 px-2 py-0.5 border border-black">
-                {task.waiting_reason.replace(/_/g, ' ')}
+              <span className="text-[11px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                {task.waiting_reason.replace(/_/g, ' ').toLowerCase()}
               </span>
             )}
           </>
         ) : (
-          <span className="text-xs font-mono font-semibold uppercase text-neutral-500">
-            NO ACTIVE TASK SELECTED
+          <span className="text-xs text-zinc-400">
+            No active task selected
           </span>
         )}
       </div>
@@ -95,7 +95,7 @@ export function ActionBar({
               onClick={() => setShowRejectModal(true)}
               disabled={loading}
             >
-              REQUEST CHANGES
+              Request changes
             </Button>
             <Button
               variant="primary"
@@ -103,7 +103,7 @@ export function ActionBar({
               onClick={handleAccept}
               disabled={loading}
             >
-              ACCEPT & FF-MERGE
+              Accept & merge
             </Button>
           </>
         )}
@@ -115,38 +115,37 @@ export function ActionBar({
             size="sm"
             onClick={handleMergeFeature}
             disabled={loading}
-            className="bg-black text-white hover:bg-swiss-red hover:border-swiss-red border-2 border-black"
           >
-            MERGE FEATURE INTO {project.active_branch || 'MAIN'}
+            Merge feature into {project.active_branch || 'main'}
           </Button>
         )}
       </div>
 
       {/* Changes Request Feedback Modal */}
       {showRejectModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="flex w-full max-w-md flex-col gap-3 rounded-none border-4 border-black bg-white p-6 shadow-none">
-            <div className="border-b-2 border-black pb-2 flex items-center justify-between">
-              <h3 className="text-sm font-black uppercase tracking-wider text-black font-mono">
-                [00] REQUEST CORRECTIONS
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="flex w-full max-w-md flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-6 shadow-xl">
+            <div className="border-b border-zinc-100 pb-2.5 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-zinc-900">
+                Request corrections
               </h3>
-              <span className="text-[10px] font-mono font-bold text-swiss-red uppercase">ACTION REQUIRED</span>
+              <span className="text-[11px] font-medium text-[#ea3a12]">Action required</span>
             </div>
-            <p className="text-xs font-medium text-neutral-700 leading-relaxed">
+            <p className="text-xs text-zinc-500 leading-relaxed">
               Provide feedback notes for the worker agent. The task will transition back to In Progress and the worker will refine the implementation in its container.
             </p>
             <textarea
-              className="h-28 w-full rounded-none border-2 border-black bg-white p-3 text-xs font-medium text-black placeholder:text-neutral-400 focus:border-swiss-red focus:outline-none focus:ring-1 focus:ring-swiss-red resize-none"
-              placeholder="Specify required fixes, failing assertions, or edge-cases..."
+              className="h-28 w-full rounded-lg border border-zinc-200 bg-white p-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-100 resize-none shadow-2xs"
+              placeholder="Specify required fixes, failing assertions, or edge cases..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
-            <div className="flex justify-end gap-2 pt-2 border-t border-black/20">
+            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
               <Button variant="outline" size="sm" onClick={() => setShowRejectModal(false)}>
-                CANCEL
+                Cancel
               </Button>
               <Button variant="danger" size="sm" onClick={handleReject} disabled={loading || !notes.trim()}>
-                SUBMIT CORRECTIONS
+                Submit corrections
               </Button>
             </div>
           </div>

@@ -7,20 +7,20 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 
 export function Badge({ className, variant = 'default', ...props }: BadgeProps) {
   const variants = {
-    default: 'border-2 border-black text-black bg-swiss-gray',
-    ready: 'border-2 border-black text-black bg-white',
-    progress: 'border-2 border-black text-black bg-amber-200',
-    checks: 'border-2 border-black text-black bg-sky-200',
-    review: 'border-2 border-black text-white bg-purple-900',
-    qa: 'border-2 border-black text-black bg-emerald-200',
-    done: 'border-2 border-black text-white bg-emerald-700',
-    blocked: 'border-2 border-black text-white bg-swiss-red font-black',
+    default: 'border-zinc-200 text-zinc-600 bg-zinc-50',
+    ready: 'border-zinc-300 text-zinc-800 bg-white',
+    progress: 'border-amber-200 text-amber-700 bg-amber-50',
+    checks: 'border-sky-200 text-sky-700 bg-sky-50',
+    review: 'border-purple-200 text-purple-700 bg-purple-50',
+    qa: 'border-emerald-200 text-emerald-700 bg-emerald-50',
+    done: 'border-emerald-200 text-emerald-700 bg-emerald-50',
+    blocked: 'border-rose-200 text-rose-700 bg-rose-50 font-semibold',
   }
 
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-none px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors select-none font-mono',
+        'inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium transition-colors select-none font-sans',
         variants[variant],
         className
       )}

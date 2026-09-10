@@ -275,3 +275,95 @@ test('generateArchitectReply throws instead of appending canned text when the ga
   assert.equal(getSpecConversation(convo.id, db).messages.length, before)
   closeOrchestratorDb()
 })
+
+/**
+ * The three defects below were all found by running the REAL research path once. Every one of
+ * them passed the mock-based suite, because the mocks returned well-formed, substantive briefs —
+ * the exact conditions under which none of these bugs exist.
+ */
+
+test('an unsourced brief is refused, not persisted as successful research', async () => {
+  const db = tempDb()
+  try {
+    const session = startCouncilSession({ projectName: 'Rain', ideaDescription: 'Rainfall tracking.' }, db)
+
+    // Measured live: Wigolo returned four off-topic sources (Yahoo Japan billing FAQs for a
+    // rainfall query), so the structuring model correctly declined to invent competitors and
+    // returned an empty-but-well-shaped brief. That was stored and reported as research.
+    // Citing sources is not enough — the refusal must surface as a refusal.
+    await assert.rejects(
+      () => researchMarket({
+        ideaTitle: 'Rain', ideaDescription: 'Rainfall tracking.', sessionId: session.id, db,
+        runner: async () => ({
+          exitCode: 0, stderr: '',
+          stdout: JSON.stringify({ sources: [{ title: 'Unrelated', url: 'https://example.invalid/a' }], evidence: [] }),
+        }),
+        structureRunner: async () => ({ competitors: [], marketSize: 'Unknown', differentiators: [], risks: [], sources: [] }),
+      }),
+      /unusable|no conclusion|not research/i,
+    )
+
+    // And nothing may be left behind that a later stage could mistake for research.
+    const after = getCouncilSession(session.id, db)
+    assert.ok(!after.marketResearch?.sources?.length, 'an unusable brief must not be persisted')
+  } finally {
+    closeOrchestratorDb()
+  }
+})
+
+test('sources the structuring model drops are restored from the research tool', async () => {
+  const db = tempDb()
+  try {
+    // The model summarised four real sources and returned `sources: []`, destroying the
+    // provenance the PRD is meant to cite. Sources are facts from the tool, not model output.
+    const brief = await researchMarket({
+      ideaTitle: 'Rain', ideaDescription: 'Rainfall tracking.', db,
+      runner: async () => ({
+        exitCode: 0, stderr: '',
+        stdout: JSON.stringify({
+          sources: [
+            { title: 'Field guide', url: 'https://example.test/guide' },
+            { title: 'Market note', url: 'https://example.test/note' },
+          ],
+        }),
+      }),
+      structureRunner: async () => ({
+        competitors: [{ name: 'RainCo', url: 'https://rainco.test', positioning: 'p', pricing: 'Unknown', strengths: ['s'], weaknesses: ['w'] }],
+        marketSize: 'Unknown', differentiators: ['d'], risks: ['r'],
+        sources: [],
+      }),
+    })
+
+    assert.deepEqual(brief.sources.map((s) => s.url).sort(),
+      ['https://example.test/guide', 'https://example.test/note'])
+  } finally {
+    closeOrchestratorDb()
+  }
+})
+
+test('a research process that produces a complete result and then hangs is not wasted', async () => {
+  const db = tempDb()
+  try {
+    // Wigolo emitted its full result at ~12s and never exited (its browser pool holds the
+    // process open), so it was killed at the timeout and the finished research was thrown away.
+    const brief = await researchMarket({
+      ideaTitle: 'Rain', ideaDescription: 'Rainfall tracking.', db,
+      runner: async () => ({
+        exitCode: 124, timedOut: true, stderr: 'killed',
+        stdout: JSON.stringify(TEST_RESEARCH),
+      }),
+    })
+    assert.equal(brief.competitors[0].name, 'AuditCo')
+
+    // But a kill with nothing usable in stdout still fails closed.
+    await assert.rejects(
+      () => researchMarket({
+        ideaTitle: 'Rain', ideaDescription: 'Rainfall tracking.', db,
+        runner: async () => ({ exitCode: 124, timedOut: true, stdout: 'Fetching...', stderr: 'killed' }),
+      }),
+      /failed after its timeout/,
+    )
+  } finally {
+    closeOrchestratorDb()
+  }
+})

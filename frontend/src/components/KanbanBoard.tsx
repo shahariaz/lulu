@@ -22,8 +22,8 @@ const COLUMNS: { id: TaskStatus; num: string; label: string }[] = [
 
 export function KanbanBoard({ tasks, activeTaskId, onSelectTask }: KanbanBoardProps) {
   return (
-    <div className="flex-1 overflow-y-auto pb-4 sm:overflow-x-auto sm:overflow-y-hidden">
-      <div className="flex min-w-0 flex-col gap-3 sm:h-full sm:min-w-[1180px] sm:flex-row">
+    <div className="flex-1 overflow-y-auto sm:overflow-x-auto sm:overflow-y-hidden h-full">
+      <div className="flex min-w-0 flex-col gap-2.5 sm:h-full sm:min-w-[1180px] sm:flex-row pb-1">
         {COLUMNS.map((col) => {
           const colTasks = tasks.filter((t) => t.status === col.id)
           const hideEmptyExceptional = colTasks.length === 0 && (col.id === 'Blocked' || col.id === 'Cancelled')

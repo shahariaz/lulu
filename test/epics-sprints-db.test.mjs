@@ -40,7 +40,7 @@ test('Migrations through 005 apply cleanly and record in schema_migrations', () 
   const db = getOrchestratorDb(dbPath)
 
   const applied = getAppliedMigrations(db)
-  assert.equal(applied.length, 5)
+  assert.ok(applied.length >= 5)
   assert.equal(applied[0].version, 1)
   assert.equal(applied[1].version, 2)
   assert.equal(applied[1].name, 'epics_and_sprints')

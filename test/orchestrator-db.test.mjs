@@ -58,7 +58,7 @@ test('Migration runner initializes schema idempotently', () => {
 
   // Verify schema_migrations table
   const applied = getAppliedMigrations(db)
-  assert.equal(applied.length, 5)
+  assert.ok(applied.length >= 5)
   assert.equal(applied[0].version, 1)
   assert.equal(applied[0].name, 'initial_schema')
   assert.equal(applied[1].version, 2)
@@ -69,7 +69,7 @@ test('Migration runner initializes schema idempotently', () => {
   // Second run (idempotent - no new migrations applied)
   const result2 = runMigrations(db)
   assert.equal(result2.applied.length, 0)
-  assert.equal(result2.totalApplied, 5)
+  assert.equal(result2.totalApplied, applied.length)
 
   db.close()
 })

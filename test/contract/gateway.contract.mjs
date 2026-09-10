@@ -271,3 +271,31 @@ test('decomposition reaches the real gateway and only references real requiremen
     closeOrchestratorDb()
   }
 })
+
+test('the live gateway still meets the capability contract the system depends on', { skip }, async () => {
+  const { verifyProviderContract, contractFingerprint, CONTRACT_CAPABILITIES } =
+    await import('../../lib/orchestrator/provider-contract.mjs')
+
+  const snapshot = await verifyProviderContract({ gatewayUrl: GATEWAY_URL, model: MODEL })
+
+  assert.equal(snapshot.reachable, true, snapshot.error || '')
+
+  // Capabilities marked required are ones the system cannot work without. If one of these
+  // fails, something downstream is silently producing unreliable output right now.
+  for (const [capability, meta] of Object.entries(CONTRACT_CAPABILITIES)) {
+    if (!meta.required || capability === 'reachable') continue
+    assert.equal(snapshot[capability], true,
+      `${GATEWAY_URL} no longer provides "${capability}". ${meta.breaks}`)
+  }
+
+  assert.ok(contractFingerprint(snapshot).startsWith('sha256:'))
+
+  // Not asserted as a failure: some gateways legitimately route elsewhere. Recorded so the
+  // drift shows up in the snapshot history and in the cockpit.
+  if (!snapshot.honoursRequestedModel) {
+    console.warn(
+      `[contract] ${GATEWAY_URL} resolved "${snapshot.requestedModel}" to `
+      + `"${snapshot.resolvedModel}" — independent review must compare RESOLVED models.`,
+    )
+  }
+})

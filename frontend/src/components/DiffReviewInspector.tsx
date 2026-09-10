@@ -38,13 +38,13 @@ export function DiffReviewInspector({
       <Card className="p-4 border-2 border-black bg-white rounded-none">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-mono font-black text-swiss-red">[TASK]</span>
+            <span className="text-xs font-mono font-black text-[#ff3000]">[TASK]</span>
             <span className="text-xs font-black uppercase tracking-tight text-black">{task.title}</span>
             <Badge variant={task.status.toLowerCase() as any}>{task.status}</Badge>
           </div>
           {candidateCommitSha && (
             <span className="text-[10px] font-mono font-bold bg-black text-white px-2 py-0.5 border border-black uppercase">
-              SHA: <span className="text-swiss-red">{formatSha(candidateCommitSha)}</span>
+              SHA: <span className="text-[#ff3000]">{formatSha(candidateCommitSha)}</span>
             </span>
           )}
         </div>
@@ -75,7 +75,7 @@ export function DiffReviewInspector({
                 <div key={i} className="text-[11px] p-2.5 rounded-none bg-swiss-gray border-2 border-black font-mono">
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-black">{f.file} {f.line ? `:${f.line}` : ''}</span>
-                    <span className="text-[9px] uppercase px-1.5 py-0.5 bg-swiss-red text-white font-black border border-black">
+                    <span className="text-[9px] uppercase px-1.5 py-0.5 bg-[#ff3000] text-white font-black border border-black">
                       {f.severity}
                     </span>
                   </div>
@@ -92,7 +92,7 @@ export function DiffReviewInspector({
         <Card className="p-4 border-2 border-black bg-white rounded-none">
           <div className="flex items-center justify-between mb-2 border-b-2 border-black pb-2">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-black uppercase text-swiss-red">[CHECKS]</span>
+              <span className="text-xs font-mono font-black uppercase text-[#ff3000]">[CHECKS]</span>
               <span className="text-xs font-black uppercase tracking-wider text-black">Automated Harness</span>
               <Badge variant={verificationResult.passed ? 'done' : 'blocked'}>
                 {verificationResult.passed ? 'PASSED (0)' : `FAILED (${verificationResult.exit_code})`}
@@ -100,7 +100,7 @@ export function DiffReviewInspector({
             </div>
             <span className="text-[10px] font-mono font-bold text-neutral-700 uppercase">{verificationResult.command}</span>
           </div>
-          <div className="bg-black border-2 border-black rounded-none p-3 font-mono text-[11px] text-neutral-200 max-h-[160px] overflow-y-auto whitespace-pre-wrap selection:bg-swiss-red selection:text-white">
+          <div className="bg-black border-2 border-black rounded-none p-3 font-mono text-[11px] text-neutral-200 max-h-[160px] overflow-y-auto whitespace-pre-wrap selection:bg-[#ff3000] selection:text-white">
             {verificationResult.output_log || 'No log output recorded.'}
           </div>
         </Card>
@@ -111,7 +111,7 @@ export function DiffReviewInspector({
         <CardHeader className="p-0 pb-2 mb-2 border-b-2 border-black">
           <CardTitle className="text-xs flex items-center justify-between w-full font-mono">
             <span className="font-black uppercase tracking-wider text-black">[DIFF] UNIFIED PATCH VIEW</span>
-            <span className="text-[10px] font-bold text-swiss-red uppercase">CANDIDATE DELTA</span>
+            <span className="text-[10px] font-bold text-[#ff3000] uppercase">CANDIDATE DELTA</span>
           </CardTitle>
         </CardHeader>
         <div

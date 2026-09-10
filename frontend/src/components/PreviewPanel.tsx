@@ -103,14 +103,14 @@ export function PreviewPanel({ task }: PreviewPanelProps) {
   }
 
   return (
-    <div className="flex flex-col h-full gap-3 overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden bg-white">
       {/* Control Toolbar */}
-      <Card className="p-3 border-2 border-black bg-white rounded-none">
-        <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="border-b-2 border-black bg-white px-5 py-3 shrink-0">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           {/* Left: Server Status & Task Info */}
           <div className="flex items-center gap-2.5">
-            <span className="text-[10px] font-mono font-black text-swiss-red uppercase">[TARGET]</span>
-            <span className="text-xs font-black uppercase tracking-tight text-black truncate max-w-[200px]">
+            <span className="text-[10px] font-mono font-black text-[#ff3000] uppercase">[TARGET]</span>
+            <span className="text-xs font-black uppercase tracking-tight text-black truncate max-w-[240px]">
               {task.title}
             </span>
             <Badge
@@ -129,7 +129,7 @@ export function PreviewPanel({ task }: PreviewPanelProps) {
                 href={previewUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[11px] font-mono font-bold text-swiss-red hover:underline flex items-center gap-1"
+                className="text-[11px] font-mono font-bold text-[#ff3000] hover:underline flex items-center gap-1 uppercase"
               >
                 {previewUrl} ↗
               </a>
@@ -141,7 +141,7 @@ export function PreviewPanel({ task }: PreviewPanelProps) {
             <button
               onClick={() => setViewport('desktop')}
               className={`px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider transition-colors ${
-                viewport === 'desktop' ? 'bg-black text-white' : 'text-black hover:bg-swiss-gray'
+                viewport === 'desktop' ? 'bg-black text-white' : 'text-black hover:bg-neutral-100'
               }`}
             >
               DESKTOP
@@ -149,7 +149,7 @@ export function PreviewPanel({ task }: PreviewPanelProps) {
             <button
               onClick={() => setViewport('tablet')}
               className={`px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider transition-colors ${
-                viewport === 'tablet' ? 'bg-black text-white' : 'text-black hover:bg-swiss-gray'
+                viewport === 'tablet' ? 'bg-black text-white' : 'text-black hover:bg-neutral-100'
               }`}
             >
               TABLET [768]
@@ -157,7 +157,7 @@ export function PreviewPanel({ task }: PreviewPanelProps) {
             <button
               onClick={() => setViewport('mobile')}
               className={`px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider transition-colors ${
-                viewport === 'mobile' ? 'bg-black text-white' : 'text-black hover:bg-swiss-gray'
+                viewport === 'mobile' ? 'bg-black text-white' : 'text-black hover:bg-neutral-100'
               }`}
             >
               MOBILE [375]
@@ -191,10 +191,10 @@ export function PreviewPanel({ task }: PreviewPanelProps) {
             )}
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* Main Preview Area */}
-      <div className="flex-1 flex flex-col items-center justify-center bg-swiss-gray swiss-grid-pattern border-2 border-black rounded-none p-3 overflow-hidden relative">
+      <div className="flex-1 flex flex-col items-center justify-center bg-neutral-100 swiss-grid-pattern p-4 overflow-hidden relative">
         {previewUrl && previewStatus === 'RUNNING' ? (
           <div className={`h-full transition-all duration-150 border-2 border-black bg-white rounded-none overflow-hidden flex flex-col ${viewportWidths[viewport]}`}>
             <iframe

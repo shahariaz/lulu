@@ -83,19 +83,17 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full overflow-hidden">
+    <div className="grid grid-cols-1 lg:grid-cols-2 h-full divide-x-2 divide-black overflow-hidden bg-white">
       {/* Left: Baseline Selector & Changelog */}
-      <Card className="flex flex-col h-full p-4 border-2 border-black bg-white rounded-none">
-        <CardHeader className="p-0 pb-3 mb-3 border-b-2 border-black">
-          <CardTitle className="text-xs flex items-center justify-between w-full font-mono">
-            <span className="font-black uppercase tracking-wider text-black">[01] REQUIREMENTS DELTA MATRIX</span>
-            <span className="text-[10px] font-bold text-swiss-red uppercase">DIFF ENGINE</span>
-          </CardTitle>
-        </CardHeader>
+      <div className="flex flex-col h-full overflow-hidden bg-white">
+        <div className="flex items-center justify-between border-b-2 border-black px-5 py-3.5 bg-white shrink-0">
+          <span className="font-black uppercase tracking-wider text-black font-mono text-xs">[01] REQUIREMENTS DELTA MATRIX</span>
+          <span className="text-[10px] font-mono font-bold text-[#ff3000] uppercase">DIFF ENGINE</span>
+        </div>
 
-        <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <div className="flex items-center gap-2 p-3.5 border-b-2 border-black bg-neutral-50 flex-wrap shrink-0">
           <select
-            className="flex-1 min-w-[140px] px-3 py-1.5 rounded-none border-2 border-black bg-white font-mono text-xs text-black font-bold focus:border-swiss-red outline-none cursor-pointer"
+            className="flex-1 min-w-[130px] px-3 py-1.5 rounded-none border-2 border-black bg-white font-mono text-xs text-black font-bold focus:border-[#ff3000] outline-none cursor-pointer"
             value={baseId1}
             onChange={(e) => setBaseId1(e.target.value)}
           >
@@ -108,7 +106,7 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
           </select>
           <span className="text-xs font-black text-black font-mono">→</span>
           <select
-            className="flex-1 min-w-[140px] px-3 py-1.5 rounded-none border-2 border-black bg-white font-mono text-xs text-black font-bold focus:border-swiss-red outline-none cursor-pointer"
+            className="flex-1 min-w-[130px] px-3 py-1.5 rounded-none border-2 border-black bg-white font-mono text-xs text-black font-bold focus:border-[#ff3000] outline-none cursor-pointer"
             value={baseId2}
             onChange={(e) => setBaseId2(e.target.value)}
           >
@@ -130,40 +128,38 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
         </div>
 
         {/* Formatted Changelog Output */}
-        <div className="flex-1 overflow-y-auto bg-swiss-gray border-2 border-black rounded-none p-3 font-mono text-xs text-black whitespace-pre-wrap leading-relaxed">
+        <div className="flex-1 overflow-y-auto bg-swiss-gray p-4 font-mono text-xs text-black whitespace-pre-wrap leading-relaxed">
           {changelog || 'Select two baseline versions above to audit requirement changes.'}
         </div>
-      </Card>
+      </div>
 
       {/* Right: Automated Scope Impact Analysis */}
-      <Card className="flex flex-col h-full p-4 border-2 border-black bg-white rounded-none">
-        <CardHeader className="p-0 pb-3 mb-3 border-b-2 border-black">
-          <CardTitle className="text-xs flex items-center justify-between w-full font-mono">
-            <span className="font-black uppercase tracking-wider text-black">[02] SCOPE IMPACT AUDIT</span>
-            {impactReport && (
-              <Badge variant={impactReport.hasImpact ? 'blocked' : 'done'}>
-                {impactReport.hasImpact ? 'IMPACT DETECTED' : 'NO IMPACT'}
-              </Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
+      <div className="flex flex-col h-full overflow-hidden bg-white">
+        <div className="flex items-center justify-between border-b-2 border-black px-5 py-3.5 bg-white shrink-0">
+          <span className="font-black uppercase tracking-wider text-black font-mono text-xs">[02] SCOPE IMPACT AUDIT</span>
+          {impactReport && (
+            <Badge variant={impactReport.hasImpact ? 'blocked' : 'done'}>
+              {impactReport.hasImpact ? 'IMPACT DETECTED' : 'NO IMPACT'}
+            </Badge>
+          )}
+        </div>
 
-        <div className="flex-1 overflow-y-auto flex flex-col gap-3">
+        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
           {impactReport ? (
             <>
               {/* Affected Tasks */}
               <div>
-                <h4 className="text-xs font-black uppercase tracking-wider text-swiss-red font-mono mb-2">
+                <h4 className="text-xs font-black uppercase tracking-wider text-[#ff3000] font-mono mb-2">
                   AFFECTED TASKS REQUIRING REWORK ({impactReport.affectedTasks.length})
                 </h4>
                 {impactReport.affectedTasks.map((t: any) => (
                   <div
                     key={t.taskId}
-                    className="p-2.5 rounded-none bg-red-50 border-2 border-black text-xs mb-2 flex justify-between items-start"
+                    className="p-3 rounded-none bg-red-50 border-2 border-black text-xs mb-2 flex justify-between items-start"
                   >
                     <div>
                       <span className="font-black uppercase tracking-tight text-black">{t.title}</span>
-                      <p className="text-[11px] font-mono text-swiss-red mt-0.5">{t.reason}</p>
+                      <p className="text-[11px] font-mono text-[#ff3000] mt-0.5">{t.reason}</p>
                     </div>
                     <Badge variant="blocked">{t.status}</Badge>
                   </div>
@@ -184,9 +180,9 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
                   {impactReport.uncoveredNewRequirements.map((r: any) => (
                     <div
                       key={r.id}
-                      className="p-2.5 rounded-none bg-swiss-gray border-2 border-black text-xs mb-2"
+                      className="p-3 rounded-none bg-swiss-gray border-2 border-black text-xs mb-2"
                     >
-                      <span className="font-mono font-black text-swiss-red">{r.id}: </span>
+                      <span className="font-mono font-black text-[#ff3000]">{r.id}: </span>
                       <span className="font-bold text-black">{r.title}</span>
                     </div>
                   ))}
@@ -203,14 +199,14 @@ export function SpecDiffViewer({ project }: SpecDiffViewerProps) {
               )}
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-center p-8 bg-swiss-gray border-2 border-dashed border-black/30 rounded-none">
-              <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 font-mono">
+            <div className="flex-1 flex items-center justify-center text-center p-8 bg-swiss-gray border-2 border-dashed border-black/20 rounded-none m-2">
+              <p className="text-xs font-mono font-bold uppercase text-neutral-400">
                 RUN BASELINE DIFF TO CALCULATE SCOPE IMPACT
               </p>
             </div>
           )}
         </div>
-      </Card>
+      </div>
     </div>
   )
 }

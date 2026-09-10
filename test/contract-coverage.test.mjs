@@ -106,3 +106,44 @@ test('contract tests skip loudly rather than passing silently when the gateway i
       `${file}'s skip reason must tell the reader how to run it`)
   }
 })
+
+/**
+ * Guard: a call whose output is PARSED must not run on the default chat budget.
+ *
+ * The blueprint call and the decomposition call were each raised to 32000 separately, after each
+ * was caught failing in production. Both times, market-research structuring and the QA verdict
+ * were left on the 4096 default — not because anyone decided they were fine, but because nothing
+ * connected "this response gets JSON.parse'd" to "this needs a reasoning-aware budget".
+ *
+ * The failure is silent by construction: max_tokens is shared with reasoning, so the response
+ * comes back cut off mid-array while reporting stop_reason "end_turn", and surfaces downstream
+ * as "malformed JSON".
+ */
+test('every gateway call whose output is parsed sets an explicit token budget', () => {
+  const offenders = []
+
+  for (const file of listEngineModules(engineDir)) {
+    const source = fs.readFileSync(file, 'utf8')
+    if (!source.includes('callGatewayForText')) continue
+
+    const lines = source.split('\n')
+    lines.forEach((line, i) => {
+      if (!line.includes('callGatewayForText(')) return
+      // The call's argument object, up to the closing brace of the call.
+      const block = lines.slice(i, i + 25).join('\n')
+      const parsed = /jsonObjectFromText|JSON\.parse|parseJson/.test(block)
+        // ...or the result is fed to a parser on the following lines.
+        || /jsonObjectFromText|JSON\.parse/.test(lines.slice(Math.max(0, i - 3), i + 30).join('\n'))
+      if (parsed && !/maxTokens/.test(block)) {
+        offenders.push(`${path.basename(file)}:${i + 1}`)
+      }
+    })
+  }
+
+  assert.deepEqual(offenders, [],
+    `These calls parse their response but run on the default chat budget:\n`
+    + offenders.map((o) => `  - ${o}`).join('\n')
+    + `\n\nPass maxTokens: STRUCTURED_OUTPUT_MAX_TOKENS from gateway-errors.mjs. `
+    + `max_tokens is shared with reasoning, so a chat-sized budget returns JSON truncated `
+    + `mid-array while reporting stop_reason "end_turn".`)
+})

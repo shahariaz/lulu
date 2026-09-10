@@ -375,10 +375,10 @@ export function IdeaStudioView({ project, onProjectInitialized }: IdeaStudioView
 
       {/* Main Workspace: Full-Screen Chat or Side-by-Side Canvas */}
       <div className={`flex-1 min-h-0 overflow-hidden bg-white ${showCanvas ? 'grid grid-cols-1 lg:grid-cols-12 divide-x divide-zinc-200' : 'flex flex-col'}`}>
-        {/* COUNCIL CHAT STREAM: Expands to 100% full screen when showCanvas is false */}
-        <div className={`${showCanvas ? 'lg:col-span-5' : 'w-full'} flex flex-col h-full overflow-hidden bg-white`}>
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 bg-zinc-50/40">
-            <div className={`${showCanvas ? 'w-full' : 'max-w-3xl mx-auto w-full'} flex flex-col gap-4`}>
+        {/* COUNCIL CHAT STREAM: Expands to full width when showCanvas is false */}
+        <div className={`${showCanvas ? 'lg:col-span-5' : 'w-full'} flex flex-col h-full overflow-hidden bg-white min-w-0`}>
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 flex flex-col gap-4 bg-zinc-50/40 min-w-0">
+            <div className={`${showCanvas ? 'w-full' : 'max-w-4xl xl:max-w-5xl mx-auto w-full'} flex flex-col gap-4 min-w-0`}>
               {messages.map((message: any) => {
                 const isUser = message.role === 'user'
                 const persona = message.agent || (message.targetRole && SPECIALISTS.find(s => s.id === message.targetRole))
@@ -386,7 +386,7 @@ export function IdeaStudioView({ project, onProjectInitialized }: IdeaStudioView
                 return (
                   <div
                     key={message.id || message.timestamp}
-                    className={`max-w-[92%] flex flex-col gap-1.5 ${isUser ? 'ml-auto items-end' : 'mr-auto items-start'}`}
+                    className={`max-w-[95%] sm:max-w-[88%] flex flex-col gap-1.5 min-w-0 ${isUser ? 'ml-auto items-end' : 'mr-auto items-start'}`}
                   >
                     {!isUser && (
                       <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-700">
@@ -395,14 +395,14 @@ export function IdeaStudioView({ project, onProjectInitialized }: IdeaStudioView
                       </div>
                     )}
                     <div
-                      className={`p-4 rounded-2xl text-xs leading-relaxed shadow-2xs ${
+                      className={`p-4 rounded-2xl text-xs leading-relaxed shadow-2xs min-w-0 max-w-full break-words ${
                         isUser
                           ? 'bg-zinc-900 text-white rounded-br-xs'
                           : 'bg-white text-zinc-800 border border-zinc-200/90 rounded-bl-xs'
                       }`}
                     >
                       {isUser ? (
-                        <p className="whitespace-pre-wrap">{message.content}</p>
+                        <p className="whitespace-pre-wrap break-words">{message.content}</p>
                       ) : (
                         <FormattedCouncilMessage content={message.content} />
                       )}
@@ -415,7 +415,7 @@ export function IdeaStudioView({ project, onProjectInitialized }: IdeaStudioView
 
           {/* Centered Prompt Dock */}
           <div className="p-3.5 border-t border-zinc-200 bg-white shrink-0">
-            <div className={`${showCanvas ? 'w-full' : 'max-w-3xl mx-auto'} flex gap-2`}>
+            <div className={`${showCanvas ? 'w-full' : 'max-w-4xl xl:max-w-5xl mx-auto'} flex gap-2`}>
               <Input
                 value={prompt}
                 onChange={e => setPrompt(e.target.value)}
@@ -879,7 +879,7 @@ function FormattedCouncilMessage({ content }: { content: string }) {
   const parts = content.split(/(```[\s\S]*?```)/g)
 
   return (
-    <div className="space-y-2 text-xs leading-relaxed text-zinc-800">
+    <div className="space-y-2 text-xs leading-relaxed text-zinc-800 min-w-0 max-w-full break-words">
       {parts.map((part, idx) => {
         if (part.startsWith('```')) {
           const lines = part.slice(3, -3).trim().split('\n')
@@ -887,13 +887,13 @@ function FormattedCouncilMessage({ content }: { content: string }) {
           const isLang = /^[a-zA-Z0-9_-]+$/.test(firstLine)
           const codeLines = isLang ? lines.slice(1) : lines
           return (
-            <div key={idx} className="my-2.5 rounded-lg bg-zinc-900 border border-zinc-800 overflow-hidden shadow-2xs">
+            <div key={idx} className="my-2.5 rounded-lg bg-zinc-900 border border-zinc-800 overflow-hidden shadow-2xs max-w-full min-w-0">
               {isLang && (
                 <div className="px-3 py-1 bg-zinc-800/80 border-b border-zinc-700/50 text-[10px] font-mono text-zinc-400">
                   {firstLine}
                 </div>
               )}
-              <pre className="p-3 font-mono text-[11px] text-zinc-200 overflow-x-auto whitespace-pre leading-relaxed">
+              <pre className="p-3 font-mono text-[11px] text-zinc-200 overflow-x-auto whitespace-pre leading-relaxed max-w-full">
                 {codeLines.join('\n')}
               </pre>
             </div>
@@ -902,7 +902,7 @@ function FormattedCouncilMessage({ content }: { content: string }) {
 
         const lines = part.split('\n')
         return (
-          <div key={idx} className="space-y-1.5">
+          <div key={idx} className="space-y-1.5 min-w-0 max-w-full">
             {lines.map((line, lineIdx) => {
               const trimmed = line.trim()
               if (!trimmed) return <div key={lineIdx} className="h-0.5" />
@@ -915,7 +915,7 @@ function FormattedCouncilMessage({ content }: { content: string }) {
               // Standalone command flags (e.g. -f hls -hls_time 1...)
               if (/^-(?:f|hls|preset|c:v|b:v|i|filter|-)\b/.test(trimmed)) {
                 return (
-                  <pre key={lineIdx} className="my-1.5 px-3 py-1.5 rounded-md bg-zinc-900 text-zinc-200 font-mono text-[11px] overflow-x-auto whitespace-pre border border-zinc-800 shadow-2xs">
+                  <pre key={lineIdx} className="my-1.5 px-3 py-1.5 rounded-md bg-zinc-900 text-zinc-200 font-mono text-[11px] overflow-x-auto whitespace-pre border border-zinc-800 shadow-2xs max-w-full">
                     {trimmed}
                   </pre>
                 )
